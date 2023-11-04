@@ -1,0 +1,175 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.github.kvr000.zbynek-gps</groupId>
+	<artifactId>zbynek-legal-format</artifactId>
+	<version>0.0.1</version>
+	<packaging>jar</packaging>
+
+	<properties>
+		<javac.version>17</javac.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+		<maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+		<maven-surefire-plugin.version>3.0.0-M5</maven-surefire-plugin.version>
+		<maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+
+		<lombok.version>1.18.30</lombok.version>
+
+		<testng.version>7.3.0</testng.version>
+
+		<log4j.version>2.17.2</log4j.version>
+
+		<guava.version>31.1-jre</guava.version>
+
+		<commons-lang3.version>3.4</commons-lang3.version>
+		<commons-io.version>2.11.0</commons-io.version>
+
+		<jackson.version>2.13.2</jackson.version>
+
+		<dryuf-cmdline.version>1.0.1</dryuf-cmdline.version>
+
+		<pdfbox.version>3.0.0</pdfbox.version>
+
+	</properties>
+
+	<build>
+		<plugins>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>${maven-compiler-plugin.version}</version>
+				<configuration>
+					<source>${javac.version}</source>
+					<target>${javac.version}</target>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${maven-surefire-plugin.version}</version>
+				<configuration>
+					<parallel>class</parallel>
+					<parallelMavenExecution>true</parallelMavenExecution>
+					<threadCount>8</threadCount>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>${maven-shade-plugin.version}</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<finalName>zbynek-legal-format</finalName>
+							<transformers>
+								<transformer
+									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+									<mainClass>com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat</mainClass>
+								</transformer>
+							</transformers>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>net.dryuf.maven.plugin</groupId>
+				<artifactId>dryuf-executable-jar-maven-plugin</artifactId>
+				<version>1.2.2</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>create-executable</goal>
+						</goals>
+						<configuration>
+							<vmParams></vmParams>
+							<sort>true</sort>
+							<resourceConfigs>
+								<resourceConfig>
+									<pattern>glob:**</pattern>
+									<type>dir</type>
+									<remove>true</remove>
+								</resourceConfig>
+							</resourceConfigs>
+							<input>target/zbynek-legal-format.jar</input>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+		</plugins>
+	</build>
+
+	<dependencies>
+
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testng</groupId>
+			<artifactId>testng</artifactId>
+			<version>${testng.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+			<version>${log4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+			<version>${log4j.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>${guava.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>${commons-lang3.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>${commons-io.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>net.dryuf</groupId>
+			<artifactId>dryuf-cmdline</artifactId>
+			<version>${dryuf-cmdline.version}</version>
+		</dependency>
+
+	</dependencies>
+</project>
