@@ -19,6 +19,7 @@ import java.util.Map;
 public class TsvUpdator implements Closeable
 {
     public static CSVFormat PARSER_TSV_HEADER = CSVFormat.DEFAULT.builder()
+            .setRecordSeparator('\n')
             .setDelimiter('\t')
             .setHeader()
             .setSkipHeaderRecord(true)

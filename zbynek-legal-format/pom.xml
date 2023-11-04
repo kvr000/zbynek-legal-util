@@ -25,11 +25,13 @@
 		<commons-lang3.version>3.4</commons-lang3.version>
 		<commons-io.version>2.11.0</commons-io.version>
 		<commons-text.version>1.11.0</commons-text.version>
+		<commons-codec.version>1.16.0</commons-codec.version>
 		<commons-csv.version>1.10.0</commons-csv.version>
 
 		<jackson.version>2.13.2</jackson.version>
 
 		<dryuf-cmdline.version>1.0.1</dryuf-cmdline.version>
+		<dryuf-base.version>1.8.0</dryuf-base.version>
 
 		<pdfbox.version>3.0.0</pdfbox.version>
 
@@ -163,6 +165,11 @@
 			<artifactId>commons-csv</artifactId>
 			<version>${commons-csv.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>commons-codec</groupId>
+			<artifactId>commons-codec</artifactId>
+			<version>${commons-codec.version}</version>
+		</dependency>
 
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -181,6 +188,11 @@
 			<groupId>net.dryuf</groupId>
 			<artifactId>dryuf-cmdline</artifactId>
 			<version>${dryuf-cmdline.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>net.dryuf</groupId>
+			<artifactId>dryuf-base</artifactId>
+			<version>${dryuf-base.version}</version>
 		</dependency>
 
 	</dependencies>

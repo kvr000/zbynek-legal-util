@@ -73,10 +73,6 @@ public class JoinExhibitCommand extends AbstractCommand
 			options.substitutes.put(values[0], values[1]);
 			return true;
 
-		case "-l":
-			options.listFile = needArgsParam(options.listFile, args);
-			return true;
-
 		case "-k":
 			options.listFileKey = needArgsParam(options.listFileKey, args);
 			return true;
@@ -92,7 +88,7 @@ public class JoinExhibitCommand extends AbstractCommand
 	protected int parseNonOptions(CommandContext context, ListIterator<String> args) throws Exception
 	{
 		ImmutableList<String> remaining = ImmutableList.copyOf(args);
-		if (remaining.isEmpty() == (options.listFile == null)) {
+		if (remaining.isEmpty() == (mainOptions.getListFile() == null)) {
 			return usage(context, "Need one or more parameters as source files or -l listfile provided");
 		}
 		options.inputs = remaining.isEmpty() ? null : remaining;
@@ -105,10 +101,10 @@ public class JoinExhibitCommand extends AbstractCommand
 		if (mainOptions.getOutput() == null) {
 			return usage(context, "-o output option is mandatory");
 		}
-		if ((options.inputs == null) == (options.listFile == null)) {
+		if ((options.inputs == null) == (mainOptions.getListFile() == null)) {
 			return usage(context, "input files or -l listfile required");
 		}
-		if ((options.listFile == null) != (options.listFileKey == null)) {
+		if ((mainOptions.getListFile() == null) != (options.listFileKey == null)) {
 			return usage(context, "none of both listFile and listFileKey should be provided");
 		}
 		if (options.firstPage == null) {
@@ -129,8 +125,8 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		Map<String, InputEntry> files;
 
-		if (options.listFile != null) {
-			filesIndex = new TsvUpdator(Paths.get(options.listFile), "Name");
+		if (mainOptions.getListFile() != null) {
+			filesIndex = new TsvUpdator(Paths.get(mainOptions.getListFile()), "Name");
 			files = readListFile();
 		}
 		else {
@@ -190,7 +186,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			doc.save(mainOptions.getOutput());
 		}
 
-		if (options.listFile != null) {
+		if (mainOptions.getListFile() != null) {
 			updateListFile(files);
 		}
 
@@ -400,8 +396,6 @@ public class JoinExhibitCommand extends AbstractCommand
 	public static class Options
 	{
 		private List<String> inputs;
-
-		private String listFile = null;
 
 		private String listFileKey = null;
 

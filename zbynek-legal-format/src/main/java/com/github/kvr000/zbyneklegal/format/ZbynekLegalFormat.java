@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
+import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -58,6 +59,10 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			options.output = needArgsParam(options.output, args);
 			return true;
 
+		case "-l":
+			options.listFile = needArgsParam(options.listFile, args);
+			return true;
+
 		default:
 			return super.parseOption(context, arg, args);
 		}
@@ -79,7 +84,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
-			"-o output", "output filename"
+			"-o output", "output filename",
+			"-l list file", "index with files"
 		);
 	}
 
@@ -88,6 +94,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	{
 		return ImmutableMap.of(
 			"join-exhibit", JoinExhibitCommand.class,
+			"update-checksum", UpdateChecksumCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -95,7 +102,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	protected Map<String, String> configCommandsDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
-			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers",
+			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index",
+			"update-checksum", "Calculates files checksum and updates index",
 			"help [command]", "Prints help"
 		);
 	}
@@ -104,6 +112,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	public static class Options
 	{
 		String output;
+
+		String listFile;
 	}
 
 	public static class GuiceModule extends AbstractModule
