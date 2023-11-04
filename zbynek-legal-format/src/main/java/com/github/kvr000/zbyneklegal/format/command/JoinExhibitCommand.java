@@ -1,14 +1,21 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.google.common.base.Charsets;
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.text.StringSubstitutor;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -21,28 +28,80 @@ import org.apache.pdfbox.util.Matrix;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @Log4j2
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class JoinExhibitCommand extends AbstractCommand
 {
+	public static CSVFormat PARSER_TSV_HEADER = CSVFormat.MONGODB_TSV.builder().setHeader().build();
+	public static final String DEFAULT_EXHIBIT_SWEAR =
+			"""
+					This is Exhibit "{exhibit}" referred to in the affidavit of
+					{name}                    {date}
+					sworn (or affirmed) before me on [dd/mmm/yyyy]
+
+					___________________________________________
+					A Commissioner for taking Affidavits for {province}""";
+
 	private final ZbynekLegalFormat.Options mainOptions;
 
 	private Options options = new Options();
+
+	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
+		switch (arg) {
+		case "-p":
+			options.firstPage = Integer.parseInt(needArgsParam(options.firstPage, args));
+			return true;
+
+		case "-e":
+			options.exhibitText = needArgsParam(options.exhibitText, args);
+			return true;
+
+		case "-s":
+			String[] values = needArgsParam(null, args).split("=", 2);
+			if (values.length != 2) {
+				throw new IllegalArgumentException("Expecting key=value for -s option");
+			} else if (options.substitutes.containsKey(values[0])) {
+				throw new IllegalArgumentException("Key already specified for -s option: " + values[0]);
+			}
+			options.substitutes.put(values[0], values[1]);
+			return true;
+
+		case "-l":
+			options.listFile = needArgsParam(options.listFile, args);
+			return true;
+
+		case "-k":
+			options.listFileKey = needArgsParam(options.listFileKey, args);
+			return true;
+
+		case "-i":
+			options.ignoreMissing = true;
+			return true;
+		}
+		return super.parseOption(context, arg, args);
+	}
 
 	@Override
 	protected int parseNonOptions(CommandContext context, ListIterator<String> args) throws Exception
 	{
 		ImmutableList<String> remaining = ImmutableList.copyOf(args);
-		if (remaining.size() < 1) {
-			return usage(context, "Need one or more parameters as source files");
+		if (remaining.isEmpty() == (options.listFile == null)) {
+			return usage(context, "Need one or more parameters as source files or -l listfile provided");
 		}
-		options.inputs = remaining;
+		options.inputs = remaining.isEmpty() ? null : remaining;
 		return EXIT_CONTINUE;
 	}
 
@@ -52,8 +111,17 @@ public class JoinExhibitCommand extends AbstractCommand
 		if (mainOptions.getOutput() == null) {
 			return usage(context, "-o output option is mandatory");
 		}
-		if (options.inputs == null) {
-			return usage(context, "input files required");
+		if ((options.inputs == null) == (options.listFile == null)) {
+			return usage(context, "input files or -l listfile required");
+		}
+		if ((options.listFile == null) != (options.listFileKey == null)) {
+			return usage(context, "none of both listFile and listFileKey should be provided");
+		}
+		if (options.firstPage == null) {
+			options.firstPage = 1;
+		}
+		if (options.exhibitText == null) {
+			options.exhibitText = DEFAULT_EXHIBIT_SWEAR;
 		}
 		return EXIT_CONTINUE;
 	}
@@ -63,53 +131,216 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		Stopwatch watch = Stopwatch.createStarted();
 
-		try (PDDocument doc = Loader.loadPDF(new File(options.inputs.get(0)))) {
-			PDPageTree allPages = doc.getDocumentCatalog().getPages();
-			PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-			float fontSize = 20.0f;
+		PDFMergerUtility merger = new PDFMergerUtility();
 
-			for (int i = 0; i < allPages.getCount(); i++) {
-				String message = String.format("Pg %03d", options.firstPage+i);
-				PDPage page = allPages.get(i);
-				PDRectangle pageSize = page.getMediaBox();
-				float stringWidth = font.getStringWidth(message)*fontSize/1000f;
-				float stringHeight = font.getHeight('A')*fontSize/1000f;
-				// calculate to center of the page
-				int rotation = page.getRotation();
-				boolean rotate = rotation == 90 || rotation == 270;
-				float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
-				float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
-				float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 10);
-				float yPosition = rotate ? (pageWidth - stringWidth - 10) : (pageHeight - stringHeight - 10);
-				System.out.printf("sw=%g sh=%g width=%g height=%g x=%g y=%g\n",
-						stringWidth, stringHeight,
-						pageWidth, pageHeight,
-						xPosition, yPosition
-				);
-				// append the content to the existing stream
-				PDPageContentStream contentStream = new PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true,true);
-				contentStream.beginText();
-				// set font and font size
-				contentStream.setFont( font, fontSize );
-				// set text color to red
-				contentStream.setNonStrokingColor(0.5f, 0.5f, 1);
-				if (rotate) {
-					// rotate the text according to the page rotation
-					contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI/2, xPosition, yPosition));
+		Map<String, InputEntry> files;
+
+		if (options.listFile != null) {
+			files = readListFile();
+		}
+		else {
+			files = options.inputs.stream()
+					.collect(Collectors.toMap(
+							Function.identity(),
+							file -> InputEntry.builder().filename(file).build(),
+							(a, b) -> { throw new IllegalArgumentException("File specified twice: " + a); },
+							LinkedHashMap::new
+					));
+		}
+
+		pageCounter = options.firstPage;
+		try (PDDocument doc = new PDDocument()) {
+			for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
+				InputEntry inputEntry = inputMapEntry.getValue();
+				File inputFile;
+				try {
+					inputFile = findFile(inputMapEntry.getKey());
+				} catch (IOException ex) {
+					if (options.ignoreMissing) {
+						log.error(ex);
+						continue;
+					}
+					throw ex;
 				}
-				else {
-					contentStream.setTextMatrix(Matrix.getTranslateInstance(xPosition, yPosition));
+				try (PDDocument input = Loader.loadPDF(inputFile)) {
+					PDPageTree allPages = input.getDocumentCatalog().getPages();
+
+					for (int i = 0; i < allPages.getCount(); i++) {
+						PDPage page = allPages.get(i);
+						PDRectangle box = page.getMediaBox();
+						if ((page.getRotation() == 0 || page.getRotation() == 180) &&
+								box.getWidth() > box.getHeight()) {
+							page.setRotation(page.getRotation() + 90);
+						}
+						try (PDPageContentStream contentStream = new PDPageContentStream(input, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
+							if (i == 0) {
+								inputEntry.pageNumber = pageCounter;
+								renderExhibitId(inputEntry, contentStream, page);
+							}
+							renderPageNumber(contentStream, page);
+						}
+					}
+					merger.appendDocument(doc, input);
 				}
-				contentStream.showText(message);
-				contentStream.endText();
-				contentStream.close();
 			}
 
 			doc.save(mainOptions.getOutput());
 		}
 
+		files.values().stream()
+				.filter(entry -> entry.pageNumber < 0)
+				.forEach(entry -> log.error("File missing: {}", entry.filename));
 		log.info("Written output in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
 		return EXIT_SUCCESS;
+	}
+
+	private LinkedHashMap<String, InputEntry> readListFile() throws IOException
+	{
+		try (CSVParser parser = CSVParser.parse(Paths.get(options.listFile), Charsets.UTF_8, PARSER_TSV_HEADER)) {
+			Map<String, Integer> headers = parser.getHeaderMap();
+			Integer positionName = headers.get("Name");
+			if (positionName == null) {
+				throw new IllegalArgumentException("Key not found in TSV file: " + "Name");
+			}
+			Integer positionColumn = headers.get(options.listFileKey + " Pos");
+			if (positionColumn == null) {
+				throw new IllegalArgumentException("Key not found in TSV file: " + options.listFileKey + " Pos");
+			}
+			return parser.stream()
+					.filter(rec -> !Strings.isNullOrEmpty(rec.get(positionColumn)))
+					.collect(Collectors.toMap(
+							rec -> rec.get(positionName),
+							rec -> InputEntry.builder()
+									.filename(rec.get(positionName))
+									.exhibitPosition(rec.get(positionColumn))
+									.build(),
+							(a, b) -> { throw new IllegalArgumentException("Filename specified twice: " +a); },
+							LinkedHashMap::new
+					));
+		}
+	}
+
+	private File findFile(String name) throws IOException
+	{
+		File out;
+		if ((out = new File(name)).exists()) {
+			return out;
+		}
+		if ((out = new File(name + ".pdf")).exists()) {
+			return out;
+		}
+		throw new FileNotFoundException("File not found: " + name);
+	}
+
+	private void renderPageNumber(PDPageContentStream contentStream, PDPage page) throws IOException
+	{
+		String message = String.format("Pg %03d", pageCounter++);
+
+		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+		float fontSize = 20.0f;
+
+		PDRectangle pageSize = page.getMediaBox();
+		float stringWidth = font.getStringWidth(message) * fontSize / 1000f;
+		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
+
+		int rotation = page.getRotation();
+		boolean rotate = rotation == 90 || rotation == 270;
+		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
+		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
+
+		float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 10);
+		float yPosition = rotate ? (pageWidth - stringWidth - 10) : (pageHeight - stringHeight - 10);
+		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}\n",
+				pageCounter - 1,
+				stringWidth, stringHeight,
+				pageWidth, pageHeight,
+				xPosition, yPosition
+		);
+		// append the content to the existing stream
+		contentStream.beginText();
+		// set font and font size
+		contentStream.setFont(font, fontSize);
+		// set text color to red
+		contentStream.setNonStrokingColor(0.5f, 0.5f, 1);
+		if (rotate) {
+			// rotate the text according to the page rotation
+			contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI / 2, xPosition, yPosition));
+		} else {
+			contentStream.setTextMatrix(Matrix.getTranslateInstance(xPosition, yPosition));
+		}
+		contentStream.showText(message);
+		contentStream.endText();
+	}
+
+
+	private void renderExhibitId(InputEntry entry, PDPageContentStream contentStream, PDPage page) throws IOException
+	{
+		entry.exhibitId = String.format("%c%c", exhibitCounter/26 + 'A', exhibitCounter%26 + 'A');
+		String message = StringSubstitutor.replace(
+				options.exhibitText,
+				ImmutableMap.<String, String>builder()
+						.putAll(options.substitutes)
+						.put("exhibit", entry.exhibitId)
+						.build(),
+				"{",
+				"}"
+		);
+
+		++exhibitCounter;
+
+		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+		float fontSize = 12.0f;
+
+		PDRectangle pageSize = page.getMediaBox();
+		int lineCount = message.split("\n").length;
+		float stringWidth = Stream.of(message.split("\n"))
+				.map(s -> {
+					try {
+						return font.getStringWidth(s) * fontSize / 1000f;
+					} catch (IOException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.reduce(0.0f, Float::max);
+		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
+
+		int rotation = page.getRotation();
+		boolean rotate = rotation == 90 || rotation == 270;
+		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
+		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
+
+		float xPosition = rotate ? (10) : (10);
+		float yPosition = rotate ? (10) : (pageHeight - stringHeight - 10);
+		log.info("Exhibit: page={} sw={} sh={} width={} height={} x={} y={}\n",
+				pageCounter - 1,
+				stringWidth, stringHeight,
+				pageWidth, pageHeight,
+				xPosition, yPosition
+		);
+		// append the content to the existing stream
+		contentStream.beginText();
+		// set font and font size
+		contentStream.setFont(font, fontSize);
+		// set text color to red
+		contentStream.setNonStrokingColor(0.5f, 0.5f, 1);
+		renderMultiLine(contentStream, page, xPosition, yPosition, stringHeight, message);
+		contentStream.endText();
+	}
+
+	private void renderMultiLine(PDPageContentStream contentStream, PDPage page, float x, float y, float height, String message) throws IOException {
+		int rotation = page.getRotation();
+		boolean rotate = rotation == 90 || rotation == 270;
+		for (String line: message.split("\n")) {
+			if (rotate) {
+				// rotate the text according to the page rotation
+				contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI / 2, x, y));
+				x += height;
+			} else {
+				contentStream.setTextMatrix(Matrix.getTranslateInstance(x, y));
+				y -= height;
+			}
+			contentStream.showText(line);
+		}
 	}
 
 	protected Map<String, String> configParametersDescription(CommandContext context)
@@ -119,10 +350,34 @@ public class JoinExhibitCommand extends AbstractCommand
 		);
 	}
 
+	private int pageCounter;
+
+	private int exhibitCounter;
+
 	public static class Options
 	{
 		private List<String> inputs;
 
-		private int firstPage = 1;
+		private String listFile = null;
+
+		private String listFileKey = null;
+
+		private Integer firstPage = null;
+
+		private String exhibitText = null;
+
+		private boolean ignoreMissing = false;
+
+		private final Map<String, String> substitutes = new LinkedHashMap<>();
+	}
+
+	@Builder
+	static class InputEntry
+	{
+		public final String filename;
+		String exhibitPosition;
+		@Builder.Default
+		int pageNumber = -1;
+		String exhibitId;
 	}
 }
