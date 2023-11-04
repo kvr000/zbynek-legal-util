@@ -1,7 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
-import com.google.common.base.Charsets;
+import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
@@ -31,10 +29,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -45,7 +40,6 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class JoinExhibitCommand extends AbstractCommand
 {
-	public static CSVFormat PARSER_TSV_HEADER = CSVFormat.MONGODB_TSV.builder().setHeader().build();
 	public static final String DEFAULT_EXHIBIT_SWEAR =
 			"""
 					This is Exhibit "{exhibit}" referred to in the affidavit of
@@ -136,6 +130,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		Map<String, InputEntry> files;
 
 		if (options.listFile != null) {
+			filesIndex = new TsvUpdator(Paths.get(options.listFile), "Name");
 			files = readListFile();
 		}
 		else {
@@ -172,6 +167,14 @@ public class JoinExhibitCommand extends AbstractCommand
 								box.getWidth() > box.getHeight()) {
 							page.setRotation(page.getRotation() + 90);
 						}
+						if (page.getRotation() == 0 || page.getRotation() == 180) {
+							inputEntry.width = box.getWidth();
+							inputEntry.height = box.getHeight();
+						}
+						else {
+							inputEntry.height = box.getWidth();
+							inputEntry.width = box.getHeight();
+						}
 						try (PDPageContentStream contentStream = new PDPageContentStream(input, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 							if (i == 0) {
 								inputEntry.pageNumber = pageCounter;
@@ -187,6 +190,19 @@ public class JoinExhibitCommand extends AbstractCommand
 			doc.save(mainOptions.getOutput());
 		}
 
+		if (options.listFile != null) {
+			updateListFile(files);
+		}
+
+		for (InputEntry entry: files.values()) {
+			log.info("Added entry: name={} exhibit={} page={} width={} height={}",
+					entry.filename,
+					entry.exhibitId,
+					entry.pageNumber,
+					entry.width, entry.height
+			);
+		}
+
 		files.values().stream()
 				.filter(entry -> entry.pageNumber < 0)
 				.forEach(entry -> log.error("File missing: {}", entry.filename));
@@ -194,30 +210,47 @@ public class JoinExhibitCommand extends AbstractCommand
 		return EXIT_SUCCESS;
 	}
 
-	private LinkedHashMap<String, InputEntry> readListFile() throws IOException
+	private Map<String, InputEntry> readListFile() throws IOException
 	{
-		try (CSVParser parser = CSVParser.parse(Paths.get(options.listFile), Charsets.UTF_8, PARSER_TSV_HEADER)) {
-			Map<String, Integer> headers = parser.getHeaderMap();
-			Integer positionName = headers.get("Name");
-			if (positionName == null) {
-				throw new IllegalArgumentException("Key not found in TSV file: " + "Name");
+			if (filesIndex.getHeaders().get(options.listFileKey + " Exh") == null) {
+				throw new IllegalArgumentException("Key not found in index file: " + options.listFileKey + " Exh");
 			}
-			Integer positionColumn = headers.get(options.listFileKey + " Pos");
-			if (positionColumn == null) {
-				throw new IllegalArgumentException("Key not found in TSV file: " + options.listFileKey + " Pos");
-			}
-			return parser.stream()
-					.filter(rec -> !Strings.isNullOrEmpty(rec.get(positionColumn)))
-					.collect(Collectors.toMap(
-							rec -> rec.get(positionName),
-							rec -> InputEntry.builder()
-									.filename(rec.get(positionName))
-									.exhibitPosition(rec.get(positionColumn))
-									.build(),
-							(a, b) -> { throw new IllegalArgumentException("Filename specified twice: " +a); },
-							LinkedHashMap::new
+			return filesIndex.listEntries().entrySet().stream()
+					.filter(rec -> !Strings.isNullOrEmpty(rec.getValue().get(options.listFileKey + " Exh")))
+					.collect(ImmutableMap.toImmutableMap(
+							Map.Entry::getKey,
+							rec -> {
+								try {
+									return InputEntry.builder()
+											.filename(rec.getKey())
+											.swornPosition(Optional.ofNullable(rec.getValue().get("Sworn Pos"))
+													.map(Strings::emptyToNull)
+													.map(pos -> {
+														String[] split = pos.split(";", 2);
+														if (split.length != 2) {
+															throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers, got: " + pos);
+														}
+														return new float[]{Float.parseFloat(split[0]), Float.parseFloat(split[1])};
+													})
+													.orElse(null)
+											)
+											.build();
+								}
+								catch (Exception ex) {
+									throw new IllegalArgumentException("Failed to process entry file=" + rec.getKey() + ": " + ex, ex);
+								}
+							}
 					));
-		}
+	}
+
+	private void updateListFile(Map<String, InputEntry> files) throws IOException
+	{
+		files.values().stream()
+				.forEach(entry -> {
+					filesIndex.setValue(entry.filename, options.listFileKey + " Pg", Integer.toString(entry.pageNumber));
+					filesIndex.setValue(entry.filename, options.listFileKey + " Exh", entry.exhibitId);
+				});
+		filesIndex.save();
 	}
 
 	private File findFile(String name) throws IOException
@@ -309,8 +342,16 @@ public class JoinExhibitCommand extends AbstractCommand
 		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
 		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
 
-		float xPosition = rotate ? (10) : (10);
-		float yPosition = rotate ? (10) : (pageHeight - stringHeight - 10);
+		float xPosition;
+		float yPosition;
+		if (entry.swornPosition != null) {
+			xPosition = rotate ? entry.swornPosition[1] : entry.swornPosition[0];
+			yPosition = rotate ? entry.swornPosition[0] : entry.swornPosition[1];
+		}
+		else {
+			xPosition = rotate ? (10) : (10);
+			yPosition = rotate ? (10) : (pageHeight - stringHeight - 10);
+		}
 		log.info("Exhibit: page={} sw={} sh={} width={} height={} x={} y={}\n",
 				pageCounter - 1,
 				stringWidth, stringHeight,
@@ -350,6 +391,8 @@ public class JoinExhibitCommand extends AbstractCommand
 		);
 	}
 
+	private TsvUpdator filesIndex;
+
 	private int pageCounter;
 
 	private int exhibitCounter;
@@ -375,9 +418,11 @@ public class JoinExhibitCommand extends AbstractCommand
 	static class InputEntry
 	{
 		public final String filename;
-		String exhibitPosition;
+		float[] swornPosition;
 		@Builder.Default
 		int pageNumber = -1;
 		String exhibitId;
+
+		float width, height;
 	}
 }
