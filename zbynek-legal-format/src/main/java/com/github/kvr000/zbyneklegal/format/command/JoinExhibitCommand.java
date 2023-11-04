@@ -55,15 +55,15 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
 		switch (arg) {
-		case "-p":
+		case "-a":
 			options.firstPage = Integer.parseInt(needArgsParam(options.firstPage, args));
 			return true;
 
-		case "-e":
-			options.exhibitText = needArgsParam(options.exhibitText, args);
+		case "-s":
+			options.swornText = needArgsParam(options.swornText, args);
 			return true;
 
-		case "-s":
+		case "-t":
 			String[] values = needArgsParam(null, args).split("=", 2);
 			if (values.length != 2) {
 				throw new IllegalArgumentException("Expecting key=value for -s option");
@@ -110,8 +110,8 @@ public class JoinExhibitCommand extends AbstractCommand
 		if (options.firstPage == null) {
 			options.firstPage = 1;
 		}
-		if (options.exhibitText == null) {
-			options.exhibitText = DEFAULT_EXHIBIT_SWEAR;
+		if (options.swornText == null) {
+			options.swornText = DEFAULT_EXHIBIT_SWEAR;
 		}
 		return EXIT_CONTINUE;
 	}
@@ -306,7 +306,7 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		entry.exhibitId = String.format("%c%c", exhibitCounter/26 + 'A', exhibitCounter%26 + 'A');
 		String message = StringSubstitutor.replace(
-				options.exhibitText,
+				options.swornText,
 				ImmutableMap.<String, String>builder()
 						.putAll(options.substitutes)
 						.put("exhibit", entry.exhibitId)
@@ -380,6 +380,18 @@ public class JoinExhibitCommand extends AbstractCommand
 		}
 	}
 
+	@Override
+	protected Map<String, String> configOptionsDescription(CommandContext context)
+	{
+		return ImmutableMap.of(
+			"-a page-number", "first page number (default 1)",
+			"-s sworn-text", "sworn stamp text, can contain placeholders in {key} form",
+			"-t key=value", "substituted values for templates",
+			"-k column-name", "key column in index file, to be suffixed with Exh and Pg",
+			"-i", "ignore errors, such as file not found"
+		);
+	}
+
 	protected Map<String, String> configParametersDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
@@ -401,7 +413,7 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		private Integer firstPage = null;
 
-		private String exhibitText = null;
+		private String swornText = null;
 
 		private boolean ignoreMissing = false;
 

@@ -1,5 +1,6 @@
 package com.github.kvr000.zbyneklegal.format;
 
+import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
 import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
 import com.google.common.collect.ImmutableMap;
@@ -95,6 +96,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		return ImmutableMap.of(
 			"join-exhibit", JoinExhibitCommand.class,
 			"update-checksum", UpdateChecksumCommand.class,
+			"add-page-numbers", AddPageNumbersCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -104,6 +106,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		return ImmutableMap.of(
 			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index",
 			"update-checksum", "Calculates files checksum and updates index",
+			"add-page-numbers", "Add page numbers and merge the files",
 			"help [command]", "Prints help"
 		);
 	}

@@ -10,15 +10,35 @@ zbynek-legal-format [options] subcommand [options] arguments
 ```
 
 
-## join-exhibit
+### join-exhibit
 
 ```
-zbynek-legal-format -o output.gpx join-exhibit -p start-page exhibit-inputs.cvs
+zbynek-legal-format -o output.pdf -l exhibit-inputs.tsv join-exhibit -a start-page
 ```
 
-The command joins exhibit documents specified in exhibit-inputs.csv into single
+The command joins exhibit documents specified in exhibit-inputs.tsv into single
 file, adds page numbers and updates the csv file with exhibits codes and their
 page numbers.
+
+### add-page-numbers
+
+```
+zbynek-legal-format -o output.pdf add-page-numbers -a start-page -p page,page-page,... -f index,index-index,... input1.pdf input2.pdf ...
+```
+
+The command joins input files into output.pdf, adding page numbers into each
+page specified in `-p` parameter (starting at `-a` argument) or `-f` parameter
+(starting at `1`).  If no `-p` or `-f` options are provided, it marks all
+pages.
+
+### update-checksum
+
+```
+zbynek-legal-format -l exhibit-inputs.tsv update-checksum
+```
+
+The command calculates and updates SHA256 sum on files provided in `-l` option,
+updating the `SHA256` column in the file.
 
 
 ## Build
