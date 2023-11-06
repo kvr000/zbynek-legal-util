@@ -1,6 +1,8 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
@@ -48,6 +50,8 @@ public class JoinExhibitCommand extends AbstractCommand
 
 					___________________________________________
 					A Commissioner for taking Affidavits for {province}""";
+
+	private static final ObjectMapper jsonMapper = new ObjectMapper();
 
 	private final ZbynekLegalFormat.Options mainOptions;
 
@@ -146,14 +150,15 @@ public class JoinExhibitCommand extends AbstractCommand
 				File inputFile;
 				try {
 					inputFile = findFile(inputMapEntry.getKey());
-				} catch (IOException ex) {
+				} catch (FileNotFoundException ex) {
+					inputEntry.error = ex;
 					if (options.ignoreMissing) {
 						log.error(ex);
 						continue;
 					}
 					throw ex;
 				}
-				try (PDDocument input = Loader.loadPDF(inputFile)) {
+				try (PDDocument input = Loader.loadPDF(inputFile); PdfRenderer renderer = new PdfRenderer(input)) {
 					PDPageTree allPages = input.getDocumentCatalog().getPages();
 
 					for (int i = 0; i < allPages.getCount(); i++) {
@@ -176,7 +181,7 @@ public class JoinExhibitCommand extends AbstractCommand
 								inputEntry.pageNumber = pageCounter;
 								renderExhibitId(inputEntry, contentStream, page);
 							}
-							renderPageNumber(contentStream, page);
+							renderer.renderPageNumber(contentStream, page, pageCounter++);
 						}
 					}
 					merger.appendDocument(doc, input);
@@ -190,14 +195,36 @@ public class JoinExhibitCommand extends AbstractCommand
 			updateListFile(files);
 		}
 
+		log.info("Results:");
 		for (InputEntry entry: files.values()) {
-			log.info("Added entry: name={} exhibit={} page={} width={} height={}",
-					entry.filename,
-					entry.exhibitId,
-					entry.pageNumber,
-					entry.width, entry.height
-			);
+			if (entry.error != null) {
+				if (!(entry.error instanceof FileNotFoundException)) {
+					log.error("Error in entry: {}", entry.filename, entry.error);
+				}
+			}
 		}
+		for (InputEntry entry: files.values()) {
+			if (entry.error != null) {
+				if (entry.error instanceof FileNotFoundException) {
+					log.error("File not found: {}", entry.filename);
+				}
+			}
+		}
+		for (InputEntry entry: files.values()) {
+			if (entry.error == null) {
+				log.info("Added entry: name={} exhibit={} page={} width={} height={}",
+						entry.filename,
+						entry.exhibitId,
+						entry.pageNumber,
+						entry.width, entry.height
+				);
+			}
+		}
+
+		log.info("Exhibit map:\n{}", jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(files.values().stream()
+				.filter(e -> e.exhibitId != null)
+				.collect(ImmutableMap.toImmutableMap(e -> e.filename, e -> e.exhibitId))
+		));
 
 		files.values().stream()
 				.filter(entry -> entry.pageNumber < 0)
@@ -244,7 +271,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		files.values().stream()
 				.forEach(entry -> {
 					filesIndex.setValue(entry.filename, options.listFileKey + " Pg", Integer.toString(entry.pageNumber));
-					filesIndex.setValue(entry.filename, options.listFileKey + " Exh", entry.exhibitId);
+					filesIndex.setValue(entry.filename, options.listFileKey + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
 				});
 		filesIndex.save();
 	}
@@ -260,47 +287,6 @@ public class JoinExhibitCommand extends AbstractCommand
 		}
 		throw new FileNotFoundException("File not found: " + name);
 	}
-
-	private void renderPageNumber(PDPageContentStream contentStream, PDPage page) throws IOException
-	{
-		String message = String.format("Pg %03d", pageCounter++);
-
-		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-		float fontSize = 20.0f;
-
-		PDRectangle pageSize = page.getMediaBox();
-		float stringWidth = font.getStringWidth(message) * fontSize / 1000f;
-		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
-
-		int rotation = page.getRotation();
-		boolean rotate = rotation == 90 || rotation == 270;
-		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
-		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
-
-		float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 10);
-		float yPosition = rotate ? (pageWidth - stringWidth - 10) : (pageHeight - stringHeight - 10);
-		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}\n",
-				pageCounter - 1,
-				stringWidth, stringHeight,
-				pageWidth, pageHeight,
-				xPosition, yPosition
-		);
-		// append the content to the existing stream
-		contentStream.beginText();
-		// set font and font size
-		contentStream.setFont(font, fontSize);
-		// set text color to red
-		contentStream.setNonStrokingColor(0.5f, 0.5f, 1);
-		if (rotate) {
-			// rotate the text according to the page rotation
-			contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI / 2, xPosition, yPosition));
-		} else {
-			contentStream.setTextMatrix(Matrix.getTranslateInstance(xPosition, yPosition));
-		}
-		contentStream.showText(message);
-		contentStream.endText();
-	}
-
 
 	private void renderExhibitId(InputEntry entry, PDPageContentStream contentStream, PDPage page) throws IOException
 	{
@@ -430,5 +416,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		String exhibitId;
 
 		float width, height;
+
+		Exception error;
 	}
 }
