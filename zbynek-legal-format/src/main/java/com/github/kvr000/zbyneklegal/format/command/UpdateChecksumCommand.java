@@ -3,6 +3,7 @@ package com.github.kvr000.zbyneklegal.format.command;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
 import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
@@ -60,19 +61,43 @@ public class UpdateChecksumCommand extends AbstractCommand
 			for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
 				InputEntry inputEntry = inputMapEntry.getValue();
 				FutureUtil.submitAsync(() -> {
-					File file;
-					try {
-						file = findFile(inputEntry.filename);
-					}
-					catch (FileNotFoundException ex) {
-						log.error("Cannot find file: {}", inputEntry.filename);
-						return null;
-					}
-					try (InputStream stream = Files.newInputStream(file.toPath())) {
-						inputEntry.checksum = DigestUtils.sha256Hex(stream);
+							if (!Strings.isNullOrEmpty(inputEntry.filename)) {
+						File file;
+						try {
+							file = findFile(inputEntry.filename);
+						} catch (FileNotFoundException ex) {
+							log.error("Cannot find file: {}", inputEntry.filename);
+							return null;
+						}
+						try (InputStream stream = Files.newInputStream(file.toPath())) {
+							inputEntry.checksum = DigestUtils.sha256Hex(stream);
+						}
 					}
 					return null;
-				}, executor);
+				}, executor)
+						.exceptionally((ex) -> {
+							log.error("Failed to process file: {}", inputEntry.filename, ex);
+							return null;
+						});
+				FutureUtil.submitAsync(() -> {
+					if (!Strings.isNullOrEmpty(inputEntry.media)) {
+						File file;
+						file = new File(inputEntry.media);
+						if (!file.exists()) {
+							log.error("Cannot find file: {}", inputEntry.media);
+							return null;
+						}
+						try (InputStream stream = Files.newInputStream(file.toPath())) {
+							inputEntry.mediaChecksum = DigestUtils.sha256Hex(stream);
+						}
+					}
+					return null;
+				}, executor)
+						.exceptionally((ex) -> {
+							log.error("Failed to process file: {}", inputEntry.media, ex);
+							return null;
+						});
+				;
 			}
 		}
 
@@ -84,34 +109,41 @@ public class UpdateChecksumCommand extends AbstractCommand
 
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
-			if (filesIndex.getHeaders().get("SHA256") == null) {
-				throw new IllegalArgumentException("Key not found in index file: " + "SHA256");
-			}
-			return filesIndex.listEntries().entrySet().stream()
-					.collect(ImmutableMap.toImmutableMap(
-							Map.Entry::getKey,
-							rec -> {
-								try {
-									return InputEntry.builder()
-											.filename(rec.getKey())
-											.checksum(null)
-											.build();
-								}
-								catch (Exception ex) {
-									throw new IllegalArgumentException("Failed to process entry file=" + rec.getKey() + ": " + ex, ex);
-								}
+		if (filesIndex.getHeaders().get("SHA256") == null) {
+			throw new IllegalArgumentException("Key not found in index file: " + "SHA256");
+		}
+		if (filesIndex.getHeaders().get("Media") == null) {
+			throw new IllegalArgumentException("Key not found in index file: " + "Media");
+		}
+		if (filesIndex.getHeaders().get("Media SHA256") == null) {
+			throw new IllegalArgumentException("Key not found in index file: " + "Media SHA256");
+		}
+		return filesIndex.listEntries().entrySet().stream()
+				.collect(ImmutableMap.toImmutableMap(
+						Map.Entry::getKey,
+						rec -> {
+							try {
+								return InputEntry.builder()
+										.filename(rec.getKey())
+										.media(rec.getValue().get("Media"))
+										.build();
+							} catch (Exception ex) {
+								throw new IllegalArgumentException("Failed to process entry file=" + rec.getKey() + ": " + ex, ex);
 							}
-					));
+						}
+				));
 	}
 
 	private void updateListFile(Map<String, InputEntry> files) throws IOException
 	{
-		files.values().stream()
-				.forEach(entry -> {
-					if (entry.checksum != null) {
-						filesIndex.setValue(entry.filename, "SHA256", entry.checksum);
-					}
-				});
+		files.values().forEach(entry -> {
+			if (entry.checksum != null) {
+				filesIndex.setValue(entry.filename, "SHA256", entry.checksum);
+			}
+			if (entry.mediaChecksum != null) {
+				filesIndex.setValue(entry.filename, "Media SHA256", entry.mediaChecksum);
+			}
+		});
 		filesIndex.save();
 	}
 
@@ -145,5 +177,9 @@ public class UpdateChecksumCommand extends AbstractCommand
 		public final String filename;
 
 		String checksum;
+
+		public final String media;
+
+		String mediaChecksum;
 	}
 }
