@@ -3,7 +3,8 @@ package com.github.kvr000.zbyneklegal.format.command;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
-import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -52,6 +53,8 @@ public class JoinExhibitCommand extends AbstractCommand
 					A Commissioner for taking Affidavits for {province}""";
 
 	private static final ObjectMapper jsonMapper = new ObjectMapper();
+
+	private final TableUpdatorFactory tableUpdatorFactory;
 
 	private final ZbynekLegalFormat.Options mainOptions;
 
@@ -130,7 +133,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		Map<String, InputEntry> files;
 
 		if (mainOptions.getListFile() != null) {
-			filesIndex = new TsvUpdator(Paths.get(mainOptions.getListFile()), "Name");
+			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
 			files = readListFile();
 		}
 		else {
@@ -385,7 +388,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		);
 	}
 
-	private TsvUpdator filesIndex;
+	private TableUpdator filesIndex;
 
 	private int pageCounter;
 

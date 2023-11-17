@@ -2,14 +2,17 @@ package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
+import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
 import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
+import com.github.kvr000.zbyneklegal.format.storage.googledrive.DelegatingStorageRepository;
+import com.github.kvr000.zbyneklegal.format.storage.googledrive.GoogleDriveStorageRepository;
+import com.github.kvr000.zbyneklegal.format.storage.googledrive.StorageRepository;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.collect.ImmutableMap;
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Provides;
+import com.google.inject.*;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.app.AppContext;
 import net.dryuf.cmdline.app.BeanFactory;
@@ -22,6 +25,8 @@ import net.dryuf.cmdline.command.HelpOfHelpCommand;
 import net.dryuf.cmdline.command.RootCommandContext;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.ListIterator;
 import java.util.Map;
@@ -97,6 +102,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"join-exhibit", JoinExhibitCommand.class,
 			"update-checksum", UpdateChecksumCommand.class,
 			"add-page-numbers", AddPageNumbersCommand.class,
+			"sync-files", SyncFilesCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -107,6 +113,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index",
 			"update-checksum", "Calculates files checksum and updates index",
 			"add-page-numbers", "Add page numbers and merge the files",
+			"sync-files", "Synchronize files from remote storage",
 			"help [command]", "Prints help"
 		);
 	}
@@ -122,8 +129,18 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	public static class GuiceModule extends AbstractModule
 	{
 		@Override
+		@SneakyThrows
 		protected void configure()
 		{
+			bind(TableUpdatorFactory.class);
+		}
+
+		@Provides
+		@Singleton
+		public StorageRepository storageRepository() throws IOException {
+			return new DelegatingStorageRepository(ImmutableMap.of(
+					"https://drive.google.com/", new GoogleDriveStorageRepository()
+			));
 		}
 
 		@Provides

@@ -8,7 +8,6 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 
-public class TsvUpdator implements Closeable
+public class TsvTableUpdator extends AbstractTableUpdator
 {
     public static CSVFormat PARSER_TSV_HEADER = CSVFormat.DEFAULT.builder()
             .setRecordSeparator('\n')
@@ -30,9 +29,12 @@ public class TsvUpdator implements Closeable
     private List<Map<String, String>> records;
     private Map<String, Map<String, String>> values;
 
-    public TsvUpdator(Path path, String idColumn) throws IOException
+    public TsvTableUpdator(Path path, String idColumn) throws IOException
     {
+        super(path, idColumn);
+
         this.filePath = path;
+
         try (CSVParser parser = CSVParser.parse(this.filePath, Charsets.UTF_8, PARSER_TSV_HEADER)) {
             headers = parser.getHeaderMap();
             Integer keyPosition = headers.get(idColumn);
@@ -52,26 +54,29 @@ public class TsvUpdator implements Closeable
         }
     }
 
-    public Map<String, Integer> getHeaders()
-    {
-        return headers;
-    }
-
     public Map<String, Map<String, String>> listEntries()
     {
         return values;
     }
 
+    @Override
+    public String getUrl(String id, String key)
+    {
+        return null;
+    }
+
+    @Override
     public void setValue(String id, String key, String value)
     {
         values.get(id).compute(key, (key0, old) -> {
             if (old == null) {
-                throw new IllegalArgumentException("Trying to set unknown column: " + key0);
+                throw new IllegalArgumentException("Trying to access unknown column: " + key0);
             }
             return value;
         });
     }
 
+    @Override
     public void save() throws IOException {
         StringBuilder output = new StringBuilder();
         try (CSVPrinter printer = new CSVPrinter(output, PARSER_TSV_HEADER)) {
@@ -82,11 +87,5 @@ public class TsvUpdator implements Closeable
             }
             Files.writeString(filePath, output);
         }
-    }
-
-    @Override
-    public void close() throws IOException
-    {
-
     }
 }

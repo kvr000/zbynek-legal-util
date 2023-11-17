@@ -1,34 +1,17 @@
 package com.github.kvr000.zbyneklegal.format.pdf;
 
-import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
-import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import net.dryuf.cmdline.command.AbstractCommand;
-import net.dryuf.cmdline.command.CommandContext;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
 
-import javax.inject.Inject;
-import java.io.File;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 
 @Log4j2

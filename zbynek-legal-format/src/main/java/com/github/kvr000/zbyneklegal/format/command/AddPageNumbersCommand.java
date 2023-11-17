@@ -2,7 +2,7 @@ package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
-import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -160,7 +160,7 @@ public class AddPageNumbersCommand extends AbstractCommand
 		);
 	}
 
-	private TsvUpdator filesIndex;
+	private TableUpdator filesIndex;
 
 	private int pageCounter;
 

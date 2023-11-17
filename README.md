@@ -41,6 +41,36 @@ The command calculates and updates SHA256 sum on files provided in `-l` option,
 updating the `SHA256` column in the file.
 
 
+### sync-files
+
+```
+zbynek-legal-format -l exhibit-inputs.tsv sync-files
+```
+
+Downloads the files from remote storage locally
+
+
+```
+zbynek-legal-format -l exhibit-inputs.tsv update-checksum
+```
+
+The command calculates and updates SHA256 sum on files provided in `-l` option,
+updating the `SHA256` column in the file.
+
+
+### Options
+
+- `-l table-file` : contains the list of exhibits, can be either TSV or XLSX file.  The first row acts as a header, with the following recognized fields:
+- - `Name` : name of the file (without pdf suffix)
+- - `Media` : name of media file
+- - `SHA256` : SHA256 checksum of file Name
+- - `Media SHA256` : checksum of file Medai
+- - `Sworn Pos` : position of sworn stamp on the page (default is top middle)
+- - `hearing-id Exh` : column with exhibit id  - any non-blank, updated automatically when generating exhibits
+- - `hearing-id Pg` : column with exhibit page number, updated automatically when generating exhibits
+- `-o output-file` : output file name
+
+
 ## Build
 
 You need to install:

@@ -1,7 +1,8 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
-import com.github.kvr000.zbyneklegal.format.table.TsvUpdator;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
+import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +33,8 @@ public class UpdateChecksumCommand extends AbstractCommand
 {
 	private final ZbynekLegalFormat.Options mainOptions;
 
+	private final TableUpdatorFactory tableUpdatorFactory;
+
 	private Options options = new Options();
 
 	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
@@ -54,7 +57,7 @@ public class UpdateChecksumCommand extends AbstractCommand
 
 		Map<String, InputEntry> files;
 
-		filesIndex = new TsvUpdator(Paths.get(mainOptions.getListFile()), "Name");
+		filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
 		files = readListFile();
 
 		try (CloseableExecutor executor = CommonPoolExecutor.getInstance()) {
@@ -119,6 +122,7 @@ public class UpdateChecksumCommand extends AbstractCommand
 			throw new IllegalArgumentException("Key not found in index file: " + "Media SHA256");
 		}
 		return filesIndex.listEntries().entrySet().stream()
+				.filter(rec -> !rec.getKey().equals("BASE"))
 				.collect(ImmutableMap.toImmutableMap(
 						Map.Entry::getKey,
 						rec -> {
@@ -165,7 +169,7 @@ public class UpdateChecksumCommand extends AbstractCommand
 		);
 	}
 
-	private TsvUpdator filesIndex;
+	private TableUpdator filesIndex;
 
 	public static class Options
 	{
