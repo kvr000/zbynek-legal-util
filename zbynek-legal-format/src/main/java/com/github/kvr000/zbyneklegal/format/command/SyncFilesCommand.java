@@ -130,6 +130,7 @@ public class SyncFilesCommand extends AbstractCommand
 				throw new IllegalArgumentException("Key not found in index file: " + "SHA256");
 			}
 			return filesIndex.listEntries().entrySet().stream()
+					.filter(rec -> !rec.getKey().equals("BASE"))
 					.collect(ImmutableMap.toImmutableMap(
 							Map.Entry::getKey,
 							rec -> {

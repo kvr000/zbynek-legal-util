@@ -35,6 +35,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,6 +67,10 @@ public class JoinExhibitCommand extends AbstractCommand
 			options.firstPage = Integer.parseInt(needArgsParam(options.firstPage, args));
 			return true;
 
+		case "-e":
+			options.firstExhibit = parseExhibitId(needArgsParam(options.firstExhibit, args));
+			return true;
+
 		case "-s":
 			options.swornText = needArgsParam(options.swornText, args);
 			return true;
@@ -78,10 +83,6 @@ public class JoinExhibitCommand extends AbstractCommand
 				throw new IllegalArgumentException("Key already specified for -s option: " + values[0]);
 			}
 			options.substitutes.put(values[0], values[1]);
-			return true;
-
-		case "-k":
-			options.listFileKey = needArgsParam(options.listFileKey, args);
 			return true;
 
 		case "-i":
@@ -111,14 +112,8 @@ public class JoinExhibitCommand extends AbstractCommand
 		if ((options.inputs == null) == (mainOptions.getListFile() == null)) {
 			return usage(context, "input files or -l listfile required");
 		}
-		if ((mainOptions.getListFile() == null) != (options.listFileKey == null)) {
+		if ((mainOptions.getListFile() == null) != (mainOptions.getListFileKey() == null)) {
 			return usage(context, "none of both listFile and listFileKey should be provided");
-		}
-		if (options.firstPage == null) {
-			options.firstPage = 1;
-		}
-		if (options.swornText == null) {
-			options.swornText = DEFAULT_EXHIBIT_SWEAR;
 		}
 		return EXIT_CONTINUE;
 	}
@@ -135,6 +130,18 @@ public class JoinExhibitCommand extends AbstractCommand
 		if (mainOptions.getListFile() != null) {
 			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
 			files = readListFile();
+			if (options.firstExhibit == null) {
+				options.firstExhibit = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKey() + " Exh"))
+						.filter(Predicate.not(Strings::isNullOrEmpty))
+						.map(JoinExhibitCommand::parseExhibitId)
+						.orElse(null);
+			}
+			if (options.firstPage == null) {
+				options.firstPage = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKey() + " Pg"))
+						.filter(Predicate.not(Strings::isNullOrEmpty))
+						.map(Integer::parseInt)
+						.orElse(null);
+			}
 		}
 		else {
 			files = options.inputs.stream()
@@ -145,8 +152,18 @@ public class JoinExhibitCommand extends AbstractCommand
 							LinkedHashMap::new
 					));
 		}
+		if (options.firstPage == null) {
+			options.firstPage = 1;
+		}
+		if (options.firstExhibit == null) {
+			options.firstExhibit = 0;
+		}
+		if (options.swornText == null) {
+			options.swornText = DEFAULT_EXHIBIT_SWEAR;
+		}
 
 		pageCounter = options.firstPage;
+		exhibitCounter = options.firstExhibit;
 		try (PDDocument doc = new PDDocument()) {
 			for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
 				InputEntry inputEntry = inputMapEntry.getValue();
@@ -188,6 +205,10 @@ public class JoinExhibitCommand extends AbstractCommand
 						}
 					}
 					merger.appendDocument(doc, input);
+				}
+				catch (Exception ex) {
+					log.error("Failed to process file: {}", inputFile, ex);
+					throw ex;
 				}
 			}
 
@@ -238,11 +259,16 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
-			if (filesIndex.getHeaders().get(options.listFileKey + " Exh") == null) {
-				throw new IllegalArgumentException("Key not found in index file: " + options.listFileKey + " Exh");
+			if (filesIndex.getHeaders().get(mainOptions.getListFileKey() + " Exh") == null) {
+				throw new IllegalArgumentException("Key not found in index file: " + mainOptions.getListFileKey() + " Exh");
 			}
 			return filesIndex.listEntries().entrySet().stream()
-					.filter(rec -> !Strings.isNullOrEmpty(rec.getValue().get(options.listFileKey + " Exh")))
+					.filter(rec -> !rec.getKey().equals("BASE"))
+					.filter(rec -> Optional.ofNullable(rec.getValue().get(mainOptions.getListFileKey() + " Exh"))
+							.map(Strings::emptyToNull)
+							.filter(s -> !s.startsWith("exclude"))
+							.isPresent()
+					)
 					.collect(ImmutableMap.toImmutableMap(
 							Map.Entry::getKey,
 							rec -> {
@@ -273,8 +299,8 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		files.values().stream()
 				.forEach(entry -> {
-					filesIndex.setValue(entry.filename, options.listFileKey + " Pg", Integer.toString(entry.pageNumber));
-					filesIndex.setValue(entry.filename, options.listFileKey + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
+					filesIndex.setValue(entry.filename, mainOptions.getListFileKey() + " Pg", Integer.toString(entry.pageNumber));
+					filesIndex.setValue(entry.filename, mainOptions.getListFileKey() + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
 				});
 		filesIndex.save();
 	}
@@ -369,6 +395,22 @@ public class JoinExhibitCommand extends AbstractCommand
 		}
 	}
 
+	private static Integer parseExhibitId(String id)
+	{
+		int value = 0;
+		if (id.isEmpty()) {
+			throw new IllegalArgumentException("exhibitId must be non empty uppercase letter sequence");
+		}
+		for (int i = 0; i < id.length(); ++i) {
+			char c = id.charAt(i);
+			if (c < 'A' || c > 'Z') {
+				throw new IllegalArgumentException("Invalid character in exhibitId, only uppercase letters allowed: " + c);
+			}
+			value = value * ('Z' - 'A' + 1) + (c - 'A');
+		}
+		return value;
+	}
+
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
@@ -398,9 +440,9 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		private List<String> inputs;
 
-		private String listFileKey = null;
-
 		private Integer firstPage = null;
+
+		private Integer firstExhibit = null;
 
 		private String swornText = null;
 

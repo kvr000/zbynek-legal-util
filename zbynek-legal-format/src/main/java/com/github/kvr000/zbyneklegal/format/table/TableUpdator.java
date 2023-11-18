@@ -13,6 +13,8 @@ public interface TableUpdator extends Closeable
 
     public String getUrl(String id, String key);
 
+    public String getOptionalValue(String id, String key);
+
     public void setValue(String id, String key, String value);
 
     public void save() throws IOException;

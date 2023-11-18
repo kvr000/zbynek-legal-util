@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 
 public class TsvTableUpdator extends AbstractTableUpdator
@@ -63,6 +64,13 @@ public class TsvTableUpdator extends AbstractTableUpdator
     public String getUrl(String id, String key)
     {
         return null;
+    }
+
+    @Override
+    public String getOptionalValue(String id, String key) {
+        return Optional.ofNullable(values.get(id))
+                .map(row -> row.get(key))
+                .orElse(null);
     }
 
     @Override

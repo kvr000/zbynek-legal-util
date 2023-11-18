@@ -69,6 +69,10 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			options.listFile = needArgsParam(options.listFile, args);
 			return true;
 
+		case "-k":
+			options.listFileKey = needArgsParam(options.listFileKey, args);
+			return true;
+
 		default:
 			return super.parseOption(context, arg, args);
 		}
@@ -91,7 +95,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	{
 		return ImmutableMap.of(
 			"-o output", "output filename",
-			"-l list file", "index with files"
+			"-l list file", "index with files",
+			"-k column-name", "key column in index file for the specific operation, suffixed with Exh and Pg"
 		);
 	}
 
@@ -124,6 +129,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		String output;
 
 		String listFile;
+
+		String listFileKey;
 	}
 
 	public static class GuiceModule extends AbstractModule

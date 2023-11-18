@@ -92,6 +92,13 @@ public class XlsTableUpdator extends AbstractTableUpdator
         return Optional.ofNullable(hyperlink).map(Hyperlink::getAddress).orElse(null);
     }
 
+    @Override
+    public String getOptionalValue(String id, String key) {
+        return Optional.ofNullable(values.get(id))
+                .map(record -> record.get(key))
+                .orElse(null);
+    }
+
     public void setValue(String id, String key, String value)
     {
         try {
@@ -137,7 +144,7 @@ public class XlsTableUpdator extends AbstractTableUpdator
     {
         switch (cell.getCellType()) {
         case NUMERIC:
-            return String.valueOf(cell.getNumericCellValue());
+            return (long) cell.getNumericCellValue() == cell.getNumericCellValue() ? Long.toString((long) cell.getNumericCellValue()) : Double.toString(cell.getNumericCellValue());
 
         case STRING:
             return cell.getStringCellValue();
