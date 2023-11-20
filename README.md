@@ -42,6 +42,15 @@ zbynek-legal-format -l exhibit-inputs.tsv sync-files
 Downloads the files from remote storage locally
 
 
+### zip
+
+```
+zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip
+```
+
+Compresses all files into zip multiarchive, limiting size of one part to 18 MB to fit into email.  Value currently hardcoded and requires external zip program.
+
+
 ### add-page-numbers
 
 ```

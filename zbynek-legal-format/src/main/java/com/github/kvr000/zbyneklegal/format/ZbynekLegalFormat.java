@@ -1,9 +1,6 @@
 package com.github.kvr000.zbyneklegal.format;
 
-import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
-import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
-import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
-import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
+import com.github.kvr000.zbyneklegal.format.command.*;
 import com.github.kvr000.zbyneklegal.format.storage.googledrive.DelegatingStorageRepository;
 import com.github.kvr000.zbyneklegal.format.storage.googledrive.GoogleDriveStorageRepository;
 import com.github.kvr000.zbyneklegal.format.storage.googledrive.StorageRepository;
@@ -108,6 +105,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"update-checksum", UpdateChecksumCommand.class,
 			"add-page-numbers", AddPageNumbersCommand.class,
 			"sync-files", SyncFilesCommand.class,
+			"zip", ZipCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -119,6 +117,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"update-checksum", "Calculates files checksum and updates index",
 			"add-page-numbers", "Add page numbers and merge the files",
 			"sync-files", "Synchronize files from remote storage",
+			"zip", "Zips files into multiarchive",
 			"help [command]", "Prints help"
 		);
 	}
