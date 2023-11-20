@@ -1,9 +1,10 @@
-package com.github.kvr000.zbyneklegal.format.storage.googledrive;
+package com.github.kvr000.zbyneklegal.format.storage;
 
 import javax.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,10 +13,10 @@ public class DelegatingStorageRepository implements StorageRepository
 {
     private static final Pattern URL_PREFIX_PATTERN = Pattern.compile("^(\\w+://[^/]+/).*");
 
-    private final Map<String, StorageRepository> repositories;
+    private final Map<String, Supplier<StorageRepository>> repositories;
 
     @Inject
-    public DelegatingStorageRepository(Map<String, StorageRepository> repositories)
+    public DelegatingStorageRepository(Map<String, Supplier<StorageRepository>> repositories)
     {
         this.repositories = repositories;
     }
@@ -38,10 +39,15 @@ public class DelegatingStorageRepository implements StorageRepository
         if (!urlMatch.matches()) {
             throw new IOException("Unrecognized URL, expecting " + URL_PREFIX_PATTERN.pattern() + " got: " + url);
         }
-        StorageRepository repository = repositories.get(urlMatch.group(1));
+        Supplier<StorageRepository> repository = repositories.get(urlMatch.group(1));
         if (repository == null) {
             throw new IOException("Unsupported storage repository for URL: " + url);
         }
-        return repository;
+        try {
+            return repository.get();
+        }
+        catch (Exception ex) {
+            throw new IOException(ex);
+        }
     }
 }

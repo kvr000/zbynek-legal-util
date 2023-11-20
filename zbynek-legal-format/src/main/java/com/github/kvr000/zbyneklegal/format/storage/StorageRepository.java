@@ -1,4 +1,4 @@
-package com.github.kvr000.zbyneklegal.format.storage.googledrive;
+package com.github.kvr000.zbyneklegal.format.storage;
 
 import java.io.IOException;
 import java.io.InputStream;

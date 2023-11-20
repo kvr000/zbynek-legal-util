@@ -1,7 +1,8 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
-import com.github.kvr000.zbyneklegal.format.storage.googledrive.StorageRepository;
+import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
+import com.github.kvr000.zbyneklegal.format.storage.StorageRepository;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Stopwatch;
@@ -129,8 +130,7 @@ public class SyncFilesCommand extends AbstractCommand
 			if (filesIndex.getHeaders().get("SHA256") == null) {
 				throw new IllegalArgumentException("Key not found in index file: " + "SHA256");
 			}
-			return filesIndex.listEntries().entrySet().stream()
-					.filter(rec -> !rec.getKey().equals("BASE"))
+			return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys().isEmpty() ? null : mainOptions.getListFileKeys()).entrySet().stream()
 					.collect(ImmutableMap.toImmutableMap(
 							Map.Entry::getKey,
 							rec -> {
@@ -147,18 +147,6 @@ public class SyncFilesCommand extends AbstractCommand
 								}
 							}
 					));
-	}
-
-	private File findFile(String name) throws IOException
-	{
-		File out;
-		if ((out = new File(name)).exists()) {
-			return out;
-		}
-		if ((out = new File(name + ".pdf")).exists()) {
-			return out;
-		}
-		throw new FileNotFoundException("File not found: " + name);
 	}
 
 	private void downloadFile(String localName, String url) throws IOException

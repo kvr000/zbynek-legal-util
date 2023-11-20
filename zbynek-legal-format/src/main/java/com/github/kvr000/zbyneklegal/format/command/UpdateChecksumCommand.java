@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Stopwatch;
@@ -121,8 +122,7 @@ public class UpdateChecksumCommand extends AbstractCommand
 		if (filesIndex.getHeaders().get("Media SHA256") == null) {
 			throw new IllegalArgumentException("Key not found in index file: " + "Media SHA256");
 		}
-		return filesIndex.listEntries().entrySet().stream()
-				.filter(rec -> !rec.getKey().equals("BASE"))
+		return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys().isEmpty() ? null : mainOptions.getListFileKeys()).entrySet().stream()
 				.collect(ImmutableMap.toImmutableMap(
 						Map.Entry::getKey,
 						rec -> {

@@ -2,6 +2,7 @@ package com.github.kvr000.zbyneklegal.format.command;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
@@ -112,8 +113,11 @@ public class JoinExhibitCommand extends AbstractCommand
 		if ((options.inputs == null) == (mainOptions.getListFile() == null)) {
 			return usage(context, "input files or -l listfile required");
 		}
-		if ((mainOptions.getListFile() == null) != (mainOptions.getListFileKey() == null)) {
+		if ((mainOptions.getListFile() == null) != (mainOptions.getListFileKeys().isEmpty())) {
 			return usage(context, "none of both listFile and listFileKey should be provided");
+		}
+		if (mainOptions.getListFileKeys().size() > 1) {
+			return usage(context, "only one -k key parameter can be specified for this command");
 		}
 		return EXIT_CONTINUE;
 	}
@@ -131,13 +135,13 @@ public class JoinExhibitCommand extends AbstractCommand
 			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
 			files = readListFile();
 			if (options.firstExhibit == null) {
-				options.firstExhibit = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKey() + " Exh"))
+				options.firstExhibit = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKeys().get(0) + " Exh"))
 						.filter(Predicate.not(Strings::isNullOrEmpty))
 						.map(JoinExhibitCommand::parseExhibitId)
 						.orElse(null);
 			}
 			if (options.firstPage == null) {
-				options.firstPage = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKey() + " Pg"))
+				options.firstPage = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKeys().get(0) + " Pg"))
 						.filter(Predicate.not(Strings::isNullOrEmpty))
 						.map(Integer::parseInt)
 						.orElse(null);
@@ -259,16 +263,7 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
-			if (filesIndex.getHeaders().get(mainOptions.getListFileKey() + " Exh") == null) {
-				throw new IllegalArgumentException("Key not found in index file: " + mainOptions.getListFileKey() + " Exh");
-			}
-			return filesIndex.listEntries().entrySet().stream()
-					.filter(rec -> !rec.getKey().equals("BASE"))
-					.filter(rec -> Optional.ofNullable(rec.getValue().get(mainOptions.getListFileKey() + " Exh"))
-							.map(Strings::emptyToNull)
-							.filter(s -> !s.startsWith("exclude"))
-							.isPresent()
-					)
+		return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys()).entrySet().stream()
 					.collect(ImmutableMap.toImmutableMap(
 							Map.Entry::getKey,
 							rec -> {
@@ -280,7 +275,7 @@ public class JoinExhibitCommand extends AbstractCommand
 													.map(pos -> {
 														String[] split = pos.split(";", 2);
 														if (split.length != 2) {
-															throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers, got: " + pos);
+															throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers or be 'default', got: " + pos);
 														}
 														return new float[]{Float.parseFloat(split[0]), Float.parseFloat(split[1])};
 													})
@@ -299,8 +294,8 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		files.values().stream()
 				.forEach(entry -> {
-					filesIndex.setValue(entry.filename, mainOptions.getListFileKey() + " Pg", Integer.toString(entry.pageNumber));
-					filesIndex.setValue(entry.filename, mainOptions.getListFileKey() + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
+					filesIndex.setValue(entry.filename, mainOptions.getListFileKeys().get(0) + " Pg", Integer.toString(entry.pageNumber));
+					filesIndex.setValue(entry.filename, mainOptions.getListFileKeys().get(0) + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
 				});
 		filesIndex.save();
 	}

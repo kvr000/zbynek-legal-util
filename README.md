@@ -30,7 +30,7 @@ zbynek-legal-format -l exhibit-inputs.tsv update-checksum
 ```
 
 The command calculates and updates SHA256 sum on files provided in `-l` option,
-updating the `SHA256` column in the file.
+updating the `SHA256` and `Media SHA256` columns in the file.
 
 
 ### sync-files
@@ -45,10 +45,10 @@ Downloads the files from remote storage locally
 ### zip
 
 ```
-zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip
+zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip -s 10240
 ```
 
-Compresses all files into zip multiarchive, limiting size of one part to 18 MB to fit into email.  Value currently hardcoded and requires external zip program.
+Compresses all files into zip multiarchive, limiting size of one part to `-s` option in kilobytes (the default is 18 MB to fit into common email limits).
 
 
 ### add-page-numbers

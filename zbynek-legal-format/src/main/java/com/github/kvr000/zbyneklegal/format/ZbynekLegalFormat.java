@@ -1,10 +1,11 @@
 package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.*;
-import com.github.kvr000.zbyneklegal.format.storage.googledrive.DelegatingStorageRepository;
+import com.github.kvr000.zbyneklegal.format.storage.DelegatingStorageRepository;
 import com.github.kvr000.zbyneklegal.format.storage.googledrive.GoogleDriveStorageRepository;
-import com.github.kvr000.zbyneklegal.format.storage.googledrive.StorageRepository;
+import com.github.kvr000.zbyneklegal.format.storage.StorageRepository;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.*;
 import lombok.Data;
@@ -24,7 +25,9 @@ import net.dryuf.cmdline.command.RootCommandContext;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
@@ -67,7 +70,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			return true;
 
 		case "-k":
-			options.listFileKey = needArgsParam(options.listFileKey, args);
+			options.listFileKeys.add(needArgsParam(null, args));
 			return true;
 
 		default:
@@ -93,7 +96,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		return ImmutableMap.of(
 			"-o output", "output filename",
 			"-l list file", "index with files",
-			"-k column-name", "key column in index file for the specific operation, suffixed with Exh and Pg"
+			"-k column-name", "multiple, key column in index file for the specific operation, suffixed with Exh and Pg"
 		);
 	}
 
@@ -129,7 +132,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 
 		String listFile;
 
-		String listFileKey;
+		List<String> listFileKeys = new ArrayList<>();
 	}
 
 	public static class GuiceModule extends AbstractModule
@@ -145,7 +148,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		@Singleton
 		public StorageRepository storageRepository() throws IOException {
 			return new DelegatingStorageRepository(ImmutableMap.of(
-					"https://drive.google.com/", new GoogleDriveStorageRepository()
+					"https://drive.google.com/", Suppliers.memoize(GoogleDriveStorageRepository::new)
 			));
 		}
 

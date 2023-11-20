@@ -1,34 +1,29 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import net.dryuf.base.concurrent.executor.CloseableExecutor;
-import net.dryuf.base.concurrent.executor.CommonPoolExecutor;
-import net.dryuf.base.concurrent.future.FutureUtil;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
-import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.compress.archivers.zip.StreamCompressor;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 
 import javax.inject.Inject;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 
@@ -42,7 +37,13 @@ public class ZipCommand extends AbstractCommand
 
 	private Options options = new Options();
 
-	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
+	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception
+	{
+		switch (arg) {
+		case "-s":
+			options.maxSizeKb = Long.parseLong(needArgsParam(options.maxSizeKb, args));
+			return true;
+		}
 		return super.parseOption(context, arg, args);
 	}
 
@@ -70,43 +71,32 @@ public class ZipCommand extends AbstractCommand
 
 		List<File> toCompress = new ArrayList<>();
 
-		for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
-			InputEntry inputEntry = inputMapEntry.getValue();
+		try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()), Optional.ofNullable(options.maxSizeKb).orElse(18*1024L) * 1024)) {
+			archive.setEncoding("UTF-8");
+			for (Map.Entry<String, InputEntry> inputMapEntry : files.entrySet()) {
+				InputEntry inputEntry = inputMapEntry.getValue();
 
-			if (!Strings.isNullOrEmpty(inputEntry.filename)) {
-				File file;
-				try {
-					file = findFile(inputEntry.filename);
-					toCompress.add(file);
-				} catch (FileNotFoundException ex) {
-					log.error("Cannot find file: {}", inputEntry.filename);
+				if (!Strings.isNullOrEmpty(inputEntry.filename)) {
+					File file = null;
+					try {
+						file = findFile(inputEntry.filename);
+					} catch (FileNotFoundException ex) {
+						log.error("Cannot find file: {}", inputEntry.filename);
+					}
+					if (file != null) {
+						addArchiveFile(archive, file.toPath());
+					}
+				}
+
+				if (!Strings.isNullOrEmpty(inputEntry.media)) {
+					Path file = Paths.get(inputEntry.media);
+					if (Files.exists(file)) {
+						addArchiveFile(archive, file);
+					} else {
+						log.error("Cannot find file: {}", inputEntry.media);
+					}
 				}
 			}
-
-			if (!Strings.isNullOrEmpty(inputEntry.media)) {
-				File file;
-				file = new File(inputEntry.media);
-				if (file.exists()) {
-					toCompress.add(file);
-				}
-				else {
-					log.error("Cannot find file: {}", inputEntry.media);
-				}
-			}
-		}
-
-		int error = Runtime.getRuntime().exec(ImmutableList.<String>builder()
-				.add("zip")
-				.add("-s")
-				.add("18m")
-				.add("-9")
-				.add(mainOptions.getOutput())
-				.addAll(Lists.transform(toCompress, File::toString))
-				.build().toArray(new String[0])
-		).waitFor();
-
-		if (error != 0) {
-			throw new IOException("zip failed with code: " + error);
 		}
 
 		log.info("Processed in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
@@ -124,8 +114,7 @@ public class ZipCommand extends AbstractCommand
 		if (filesIndex.getHeaders().get("Media SHA256") == null) {
 			throw new IllegalArgumentException("Key not found in index file: " + "Media SHA256");
 		}
-		return filesIndex.listEntries().entrySet().stream()
-				.filter(rec -> !rec.getKey().equals("BASE"))
+		return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys().isEmpty() ? null : mainOptions.getListFileKeys()).entrySet().stream()
 				.collect(ImmutableMap.toImmutableMap(
 						Map.Entry::getKey,
 						rec -> {
@@ -141,19 +130,6 @@ public class ZipCommand extends AbstractCommand
 				));
 	}
 
-	private void updateListFile(Map<String, InputEntry> files) throws IOException
-	{
-		files.values().forEach(entry -> {
-			if (entry.checksum != null) {
-				filesIndex.setValue(entry.filename, "SHA256", entry.checksum);
-			}
-			if (entry.mediaChecksum != null) {
-				filesIndex.setValue(entry.filename, "Media SHA256", entry.mediaChecksum);
-			}
-		});
-		filesIndex.save();
-	}
-
 	private File findFile(String name) throws IOException
 	{
 		File out;
@@ -166,9 +142,31 @@ public class ZipCommand extends AbstractCommand
 		throw new FileNotFoundException("File not found: " + name);
 	}
 
+	private void addArchiveFile(ZipArchiveOutputStream archive, Path file) throws IOException
+	{
+		ZipArchiveEntry entry = archive.createArchiveEntry(file, file.getFileName().toString());
+		ByteArrayBackingStore deflated = new ByteArrayBackingStore();
+		StreamCompressor compressor = StreamCompressor.create(9, deflated);
+		try (InputStream input = Files.newInputStream(file)) {
+			compressor.deflate(input, ZipArchiveEntry.DEFLATED);
+			compressor.close();
+		}
+		entry.setMethod(ZipArchiveEntry.DEFLATED);
+		entry.setCrc(compressor.getCrc32());
+		entry.setCompressedSize(deflated.output.size());
+		archive.addRawArchiveEntry(entry, deflated.getInputStream());
+	}
+
 	protected Map<String, String> configParametersDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
+		);
+	}
+
+	@Override
+	protected Map<String, String> configOptionsDescription(CommandContext context) {
+		return ImmutableMap.of(
+				"-s max-size-kb", "max size of archive part in kilobytes"
 		);
 	}
 
@@ -176,6 +174,7 @@ public class ZipCommand extends AbstractCommand
 
 	public static class Options
 	{
+		Long maxSizeKb;
 	}
 
 	@Builder
@@ -188,5 +187,30 @@ public class ZipCommand extends AbstractCommand
 		public final String media;
 
 		String mediaChecksum;
+	}
+
+	static class ByteArrayBackingStore implements ScatterGatherBackingStore
+	{
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+		@Override
+		public void closeForWriting() throws IOException {
+			output.close();
+		}
+
+		@Override
+		public InputStream getInputStream() throws IOException {
+			return output.toInputStream();
+		}
+
+		@Override
+		public void writeOut(byte[] data, int offset, int length) throws IOException {
+			output.write(data, offset, length);
+		}
+
+		@Override
+		public void close() throws IOException {
+			output.close();
+		}
 	}
 }

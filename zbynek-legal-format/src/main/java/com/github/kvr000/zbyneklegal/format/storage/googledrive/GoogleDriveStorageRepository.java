@@ -3,6 +3,7 @@ package com.github.kvr000.zbyneklegal.format.storage.googledrive;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -10,6 +11,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.kvr000.zbyneklegal.format.storage.StorageRepository;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
 import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
@@ -54,16 +56,20 @@ public class GoogleDriveStorageRepository implements StorageRepository
     private final NetHttpTransport HTTP_TRANSPORT;
     private final Drive service;
 
-    public GoogleDriveStorageRepository() throws IOException
+    public GoogleDriveStorageRepository()
     {
         try {
             HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        } catch (GeneralSecurityException e) {
-            throw new IOException(e);
+            service = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
+                    .setApplicationName(APPLICATION_NAME)
+                    .build();
         }
-        service = new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        catch (GeneralSecurityException e) {
+            throw new UncheckedIOException(new IOException(e));
+        }
     }
 
     @Override
