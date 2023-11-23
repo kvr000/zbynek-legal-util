@@ -53,13 +53,12 @@ public class XlsTableUpdator extends AbstractTableUpdator
                 records = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
                         .mapToObj(rowId -> sheet.getRow(rowId))
                         .skip(1)
-                        .filter(Objects::nonNull)
-                        .map(row -> (Map<String, String>) StreamSupport.stream(row.spliterator(), false)
+                        .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)
                                 .filter(cell -> headerNames[cell.getColumnIndex()] != null)
                                 .collect(ImmutableMap.toImmutableMap(
                                         cell -> headerNames[cell.getColumnIndex()],
                                         cell -> Strings.nullToEmpty(getCellString(cell))
-                                        ))
+                                ))
                         )
                         .toList();
                 values = records.stream()

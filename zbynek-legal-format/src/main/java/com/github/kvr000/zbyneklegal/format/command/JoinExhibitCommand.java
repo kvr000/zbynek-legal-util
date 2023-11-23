@@ -117,7 +117,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			return usage(context, "none of both listFile and listFileKey should be provided");
 		}
 		if (mainOptions.getListFileKeys().size() > 1) {
-			return usage(context, "only one -k key parameter can be specified for this command");
+			log.info("Multiple exhibit sets specified, only the first one will be considered for BASE purposes");
 		}
 		return EXIT_CONTINUE;
 	}
@@ -133,6 +133,7 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		if (mainOptions.getListFile() != null) {
 			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
+			indexReader = new IndexReader(filesIndex);
 			files = readListFile();
 			if (options.firstExhibit == null) {
 				options.firstExhibit = Optional.ofNullable(filesIndex.getOptionalValue("BASE", mainOptions.getListFileKeys().get(0) + " Exh"))
@@ -263,7 +264,7 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
-		return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys()).entrySet().stream()
+		return indexReader.readIndex(mainOptions.getListFileKeys()).entrySet().stream()
 					.collect(ImmutableMap.toImmutableMap(
 							Map.Entry::getKey,
 							rec -> {
@@ -273,6 +274,9 @@ public class JoinExhibitCommand extends AbstractCommand
 											.swornPosition(Optional.ofNullable(rec.getValue().get("Sworn Pos"))
 													.map(Strings::emptyToNull)
 													.map(pos -> {
+														if (pos.equals("default")) {
+															return null;
+														}
 														String[] split = pos.split(";", 2);
 														if (split.length != 2) {
 															throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers or be 'default', got: " + pos);
@@ -294,8 +298,12 @@ public class JoinExhibitCommand extends AbstractCommand
 	{
 		files.values().stream()
 				.forEach(entry -> {
-					filesIndex.setValue(entry.filename, mainOptions.getListFileKeys().get(0) + " Pg", Integer.toString(entry.pageNumber));
-					filesIndex.setValue(entry.filename, mainOptions.getListFileKeys().get(0) + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
+					mainOptions.getListFileKeys().forEach((exhibitKey) -> {
+						if (indexReader.isExhibitIncluded(entry.filename, Collections.singleton(exhibitKey))) {
+							filesIndex.setValue(entry.filename, exhibitKey + " Pg", Integer.toString(entry.pageNumber));
+							filesIndex.setValue(entry.filename, exhibitKey + " Exh", Optional.ofNullable(entry.exhibitId).orElse("-"));
+						}
+					});
 				});
 		filesIndex.save();
 	}
@@ -426,6 +434,8 @@ public class JoinExhibitCommand extends AbstractCommand
 	}
 
 	private TableUpdator filesIndex;
+
+	private IndexReader indexReader;
 
 	private int pageCounter;
 

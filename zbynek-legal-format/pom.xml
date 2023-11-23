@@ -32,7 +32,7 @@
 		<jackson.version>2.13.2</jackson.version>
 
 		<dryuf-cmdline.version>1.0.1</dryuf-cmdline.version>
-		<dryuf-base.version>1.8.0</dryuf-base.version>
+		<dryuf-base.version>1.8.1</dryuf-base.version>
 
 		<pdfbox.version>3.0.0</pdfbox.version>
 
