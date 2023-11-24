@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
@@ -32,6 +33,9 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +68,19 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
 		switch (arg) {
+		case "--code":
+			if (args.hasNext()) {
+				options.code = needArgsParam(options.code, args);
+			}
+			else {
+				options.code = "";
+			}
+			return true;
+
+		case "--base":
+			options.base = needArgsParam(options.base, args);
+			return true;
+
 		case "-a":
 			options.firstPage = Integer.parseInt(needArgsParam(options.firstPage, args));
 			return true;
@@ -96,6 +113,9 @@ public class JoinExhibitCommand extends AbstractCommand
 	@Override
 	protected int parseNonOptions(CommandContext context, ListIterator<String> args) throws Exception
 	{
+		if (options.code != null) {
+			return EXIT_CONTINUE;
+		}
 		ImmutableList<String> remaining = ImmutableList.copyOf(args);
 		if (remaining.isEmpty() == (mainOptions.getListFile() == null)) {
 			return usage(context, "Need one or more parameters as source files or -l listfile provided");
@@ -107,6 +127,9 @@ public class JoinExhibitCommand extends AbstractCommand
 	@Override
 	protected int validateOptions(CommandContext context, ListIterator<String> args) throws Exception
 	{
+		if (options.code != null) {
+			return EXIT_CONTINUE;
+		}
 		if (mainOptions.getOutput() == null) {
 			return usage(context, "-o output option is mandatory");
 		}
@@ -125,6 +148,10 @@ public class JoinExhibitCommand extends AbstractCommand
 	@Override
 	public int execute() throws Exception
 	{
+		if (options.code != null) {
+			return executeCode();
+		}
+
 		Stopwatch watch = Stopwatch.createStarted();
 
 		PDFMergerUtility merger = new PDFMergerUtility();
@@ -157,19 +184,21 @@ public class JoinExhibitCommand extends AbstractCommand
 							LinkedHashMap::new
 					));
 		}
-		if (options.firstPage == null) {
-			options.firstPage = 1;
-		}
-		if (options.firstExhibit == null) {
-			options.firstExhibit = 0;
-		}
-		if (options.swornText == null) {
-			options.swornText = DEFAULT_EXHIBIT_SWEAR;
-		}
+		try (PDDocument doc = options.base == null ? new PDDocument() : Loader.loadPDF(new File(options.base))) {
 
-		pageCounter = options.firstPage;
-		exhibitCounter = options.firstExhibit;
-		try (PDDocument doc = new PDDocument()) {
+			if (options.firstPage == null) {
+				options.firstPage = doc.getNumberOfPages() + 1;
+			}
+			if (options.firstExhibit == null) {
+				options.firstExhibit = 0;
+			}
+			if (options.swornText == null) {
+				options.swornText = DEFAULT_EXHIBIT_SWEAR;
+			}
+
+			pageCounter = options.firstPage;
+			exhibitCounter = options.firstExhibit;
+
 			for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
 				InputEntry inputEntry = inputMapEntry.getValue();
 				File inputFile;
@@ -414,10 +443,30 @@ public class JoinExhibitCommand extends AbstractCommand
 		return value;
 	}
 
+	private int executeCode() throws IOException
+	{
+		if (options.code.equals("")) {
+			System.out.println("""
+				 The following codes are available:
+				 google-docs-exhibit-update.js - Google Docs exhibit update script
+			""");
+			return 0;
+		}
+		try (InputStream codeFile = JoinExhibitCommand.class.getResourceAsStream("JoinExhibitCommand-code/" + options.code)) {
+			if (codeFile == null) {
+				throw new IOException("Failed to open: " + "JoinExhibitCommand-code/" + options.code);
+			}
+			IOUtils.copy(codeFile, System.out);
+		}
+		return 0;
+	}
+
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
+			"--code id", "prints supporting code, omit the id for list",
+			"--base base-document", "base document to start with",
 			"-a page-number", "first page number (default 1)",
 			"-s sworn-text", "sworn stamp text, can contain placeholders in {key} form",
 			"-t key=value", "substituted values for templates",
@@ -443,6 +492,10 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	public static class Options
 	{
+		private String code;
+
+		private String base;
+
 		private List<String> inputs;
 
 		private Integer firstPage = null;
