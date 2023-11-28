@@ -106,9 +106,10 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		return ImmutableMap.of(
 			"join-exhibit", JoinExhibitCommand.class,
 			"update-checksum", UpdateChecksumCommand.class,
-			"add-page-numbers", AddPageNumbersCommand.class,
 			"sync-files", SyncFilesCommand.class,
 			"zip", ZipCommand.class,
+			"add-page-numbers", AddPageNumbersCommand.class,
+			"pdf-split", PdfSplitCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}

@@ -55,10 +55,10 @@ Downloads the files from remote storage locally
 ### zip
 
 ```
-zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip -s 10240
+zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip -s 10M
 ```
 
-Compresses all files into zip multiarchive, limiting size of one part to `-s` option in kilobytes (the default is 18 MB to fit into common email limits).
+Compresses all files into zip multiarchive, limiting size of one part to `-s` option (the default is 18 MB to fit into common email limits).
 
 
 ### add-page-numbers
@@ -71,6 +71,16 @@ The command joins input files into output.pdf, adding page numbers into each
 page specified in `-p` parameter (starting at `-a` argument) or `-f` parameter
 (starting at `1`).  If no `-p` or `-f` options are provided, it marks all
 pages.
+
+
+### split-pdf
+
+```
+zbynek-legal-format -o output.pdf split-pdf -s max-size -page -p max-pages input1.pdf input2.pdf ...
+```
+
+The command joins input files into a destination and split into output-0xyz.pdf files based on max-size or max page length.
+
 
 ### General Options
 

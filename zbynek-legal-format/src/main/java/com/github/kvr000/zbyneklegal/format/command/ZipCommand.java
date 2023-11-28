@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.format.SizeFormat;
 import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
@@ -41,7 +42,7 @@ public class ZipCommand extends AbstractCommand
 	{
 		switch (arg) {
 		case "-s":
-			options.maxSizeKb = Long.parseLong(needArgsParam(options.maxSizeKb, args));
+			options.maxSize = SizeFormat.parseSize(needArgsParam(options.maxSize, args));
 			return true;
 		}
 		return super.parseOption(context, arg, args);
@@ -71,7 +72,7 @@ public class ZipCommand extends AbstractCommand
 
 		List<File> toCompress = new ArrayList<>();
 
-		try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()), Optional.ofNullable(options.maxSizeKb).orElse(18*1024L) * 1024)) {
+		try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()), Optional.ofNullable(options.maxSize).orElse(18*1024*1024L))) {
 			archive.setEncoding("UTF-8");
 			for (Map.Entry<String, InputEntry> inputMapEntry : files.entrySet()) {
 				InputEntry inputEntry = inputMapEntry.getValue();
@@ -166,7 +167,7 @@ public class ZipCommand extends AbstractCommand
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context) {
 		return ImmutableMap.of(
-				"-s max-size-kb", "max size of archive part in kilobytes"
+				"-s max-size[BKMGT]", "max size of archive part, default is bytes"
 		);
 	}
 
@@ -174,7 +175,7 @@ public class ZipCommand extends AbstractCommand
 
 	public static class Options
 	{
-		Long maxSizeKb;
+		Long maxSize;
 	}
 
 	@Builder
