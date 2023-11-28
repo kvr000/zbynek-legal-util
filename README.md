@@ -22,6 +22,16 @@ page numbers.
 
 The base page and base exhibit id are taken from the `BASE` entry unless specified on command line.
 
+#### Options
+
+- `--code id` : prints supporting code, omit the id for list
+- `--base base-document` : base document to start with
+- `-a page-number` : first page number (default 1)
+- `-s sworn-text` : sworn stamp text, can contain placeholders in {key} form
+- `-t key=value` : substituted values for templates Pg
+- `--extract what (multi)` : extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) odd (odd-even pair)
+- `-i` : ignore errors, such as file not found
+
 
 ### update-checksum
 

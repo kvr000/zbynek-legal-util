@@ -34,8 +34,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -74,6 +72,21 @@ public class JoinExhibitCommand extends AbstractCommand
 			}
 			else {
 				options.code = "";
+			}
+			return true;
+
+		case "--extract":
+			options.extract.add(needArgsParam(null, args));
+			switch (options.extract.get(options.extract.size()-1)) {
+			case "first":
+			case "last":
+			case "exhibit-first":
+			case "single":
+			case "pair-odd":
+				break;
+
+			default:
+				throw new IllegalArgumentException("Invalid value, allowed: first last exhibit-first single pair-odd");
 			}
 			return true;
 
@@ -186,8 +199,13 @@ public class JoinExhibitCommand extends AbstractCommand
 		}
 		try (PDDocument doc = options.base == null ? new PDDocument() : Loader.loadPDF(new File(options.base))) {
 
+			basePages = doc.getNumberOfPages();
+			internalPageCounter = basePages;
 			if (options.firstPage == null) {
-				options.firstPage = doc.getNumberOfPages() + 1;
+				options.firstPage = 1;
+			}
+			else {
+				options.firstPage -= internalPageCounter;
 			}
 			if (options.firstExhibit == null) {
 				options.firstExhibit = 0;
@@ -196,7 +214,6 @@ public class JoinExhibitCommand extends AbstractCommand
 				options.swornText = DEFAULT_EXHIBIT_SWEAR;
 			}
 
-			pageCounter = options.firstPage;
 			exhibitCounter = options.firstExhibit;
 
 			for (Map.Entry<String, InputEntry> inputMapEntry: files.entrySet()) {
@@ -215,6 +232,9 @@ public class JoinExhibitCommand extends AbstractCommand
 				try (PDDocument input = Loader.loadPDF(inputFile); PdfRenderer renderer = new PdfRenderer(input)) {
 					PDPageTree allPages = input.getDocumentCatalog().getPages();
 
+					inputEntry.internalPageNumber = internalPageCounter;
+					inputEntry.pageNumber = options.firstPage + internalPageCounter;
+
 					for (int i = 0; i < allPages.getCount(); i++) {
 						PDPage page = allPages.get(i);
 						PDRectangle box = page.getMediaBox();
@@ -232,10 +252,9 @@ public class JoinExhibitCommand extends AbstractCommand
 						}
 						try (PDPageContentStream contentStream = new PDPageContentStream(input, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 							if (i == 0) {
-								inputEntry.pageNumber = pageCounter;
 								renderExhibitId(inputEntry, contentStream, page);
 							}
-							renderer.renderPageNumber(contentStream, page, pageCounter++);
+							renderer.renderPageNumber(contentStream, page, options.firstPage + internalPageCounter++);
 						}
 					}
 					merger.appendDocument(doc, input);
@@ -243,6 +262,60 @@ public class JoinExhibitCommand extends AbstractCommand
 				catch (Exception ex) {
 					log.error("Failed to process file: {}", inputFile, ex);
 					throw ex;
+				}
+			}
+
+			if (!options.extract.isEmpty()) {
+				boolean extractOdd = true;
+				Set<Integer> pages = new TreeSet<>(Comparator.reverseOrder());
+				for (String command: options.extract) {
+					switch (command) {
+					case "first":
+						if (basePages > 0) {
+							pages.add(0);
+						}
+						break;
+
+					case "last":
+						if (basePages > 0) {
+							pages.add(basePages - 1);
+						}
+						break;
+
+					case "exhibit-first":
+						files.values().stream().map(e -> e.internalPageNumber).filter(p -> p >= 0).forEach(pages::add);
+						break;
+
+					case "single":
+						extractOdd = false;
+						break;
+
+					case "pair-odd":
+						extractOdd = true;
+						break;
+					}
+				}
+				int lastIncluded = doc.getNumberOfPages();
+				if (extractOdd) {
+					for (int page : pages) {
+						if (lastIncluded > page) {
+							for (--lastIncluded; lastIncluded >= ((page + 2) & ~1); --lastIncluded) {
+								log.info("Removing page: {}", lastIncluded);
+								doc.removePage(lastIncluded);
+							}
+						}
+						lastIncluded = lastIncluded & ~1;
+					}
+				}
+				else {
+					for (int page : pages) {
+						for (--lastIncluded; lastIncluded > page; --lastIncluded) {
+							doc.removePage(lastIncluded);
+						}
+					}
+				}
+				for (--lastIncluded; lastIncluded >= 0; --lastIncluded) {
+					doc.removePage(lastIncluded);
 				}
 			}
 
@@ -281,7 +354,7 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		log.info("Exhibit map:\n{}", jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(files.values().stream()
 				.filter(e -> e.exhibitId != null)
-				.collect(ImmutableMap.toImmutableMap(e -> e.filename, e -> e.exhibitId))
+				.collect(ImmutableMap.toImmutableMap(e -> e.filename, e -> e.exhibitId + " p" + e.pageNumber))
 		));
 
 		files.values().stream()
@@ -396,7 +469,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			yPosition = rotate ? (10) : (pageHeight - stringHeight - 10);
 		}
 		log.info("Exhibit: page={} sw={} sh={} width={} height={} x={} y={}\n",
-				pageCounter - 1,
+				options.firstExhibit + internalPageCounter - 1,
 				stringWidth, stringHeight,
 				pageWidth, pageHeight,
 				xPosition, yPosition
@@ -470,7 +543,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			"-a page-number", "first page number (default 1)",
 			"-s sworn-text", "sworn stamp text, can contain placeholders in {key} form",
 			"-t key=value", "substituted values for templates",
-			"-k column-name", "key column in index file, to be suffixed with Exh and Pg",
+			"--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) odd (odd-even pair)",
 			"-i", "ignore errors, such as file not found"
 		);
 	}
@@ -486,12 +559,16 @@ public class JoinExhibitCommand extends AbstractCommand
 
 	private IndexReader indexReader;
 
-	private int pageCounter;
+	private int basePages = -1;
+
+	private int internalPageCounter;
 
 	private int exhibitCounter;
 
 	public static class Options
 	{
+		private List<String> extract = new ArrayList<>();
+
 		private String code;
 
 		private String base;
@@ -516,6 +593,8 @@ public class JoinExhibitCommand extends AbstractCommand
 		float[] swornPosition;
 		@Builder.Default
 		int pageNumber = -1;
+		@Builder.Default
+		int internalPageNumber = -1;
 		String exhibitId;
 
 		float width, height;
