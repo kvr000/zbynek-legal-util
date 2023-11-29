@@ -23,11 +23,9 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.PDPageTree;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
-import org.apache.pdfbox.util.Matrix;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -35,7 +33,16 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -237,22 +244,14 @@ public class JoinExhibitCommand extends AbstractCommand
 
 					for (int i = 0; i < allPages.getCount(); i++) {
 						PDPage page = allPages.get(i);
-						PDRectangle box = page.getMediaBox();
-						if ((page.getRotation() == 0 || page.getRotation() == 180) &&
-								box.getWidth() > box.getHeight()) {
+						if (renderer.rotatedWidth(page) > renderer.rotatedHeight(page)) {
 							page.setRotation(page.getRotation() + 90);
 						}
-						if (page.getRotation() == 0 || page.getRotation() == 180) {
-							inputEntry.width = box.getWidth();
-							inputEntry.height = box.getHeight();
-						}
-						else {
-							inputEntry.height = box.getWidth();
-							inputEntry.width = box.getHeight();
-						}
+						inputEntry.width = renderer.rotatedWidth(page);
+						inputEntry.height = renderer.rotatedHeight(page);
 						try (PDPageContentStream contentStream = new PDPageContentStream(input, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 							if (i == 0) {
-								renderExhibitId(inputEntry, contentStream, page);
+								renderExhibitId(renderer, contentStream, page, inputEntry);
 							}
 							renderer.renderPageNumber(contentStream, page, options.firstPage + internalPageCounter++);
 						}
@@ -422,7 +421,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		throw new FileNotFoundException("File not found: " + name);
 	}
 
-	private void renderExhibitId(InputEntry entry, PDPageContentStream contentStream, PDPage page) throws IOException
+	private void renderExhibitId(PdfRenderer renderer, PDPageContentStream contentStream, PDPage page, InputEntry entry) throws IOException
 	{
 		entry.exhibitId = String.format("%c%c", exhibitCounter/26 + 'A', exhibitCounter%26 + 'A');
 		String message = StringSubstitutor.replace(
@@ -437,11 +436,13 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		++exhibitCounter;
 
-		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-		float fontSize = 12.0f;
+		boolean rotate = renderer.isRotated(page);
+		float pageWidth = renderer.rotatedWidth(page);
+		float pageHeight = renderer.rotatedHeight(page);
 
-		PDRectangle pageSize = page.getMediaBox();
-		int lineCount = message.split("\n").length;
+		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+		float fontSize = 12.0f * (pageHeight/792.0f);
+
 		float stringWidth = Stream.of(message.split("\n"))
 				.map(s -> {
 					try {
@@ -452,11 +453,6 @@ public class JoinExhibitCommand extends AbstractCommand
 				})
 				.reduce(0.0f, Float::max);
 		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
-
-		int rotation = page.getRotation();
-		boolean rotate = rotation == 90 || rotation == 270;
-		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
-		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
 
 		float xPosition;
 		float yPosition;
@@ -474,30 +470,12 @@ public class JoinExhibitCommand extends AbstractCommand
 				pageWidth, pageHeight,
 				xPosition, yPosition
 		);
-		// append the content to the existing stream
-		contentStream.beginText();
-		// set font and font size
-		contentStream.setFont(font, fontSize);
-		// set text color to red
-		contentStream.setNonStrokingColor(0.5f, 0.5f, 1);
-		renderMultiLine(contentStream, page, xPosition, yPosition, stringHeight, message);
-		contentStream.endText();
-	}
 
-	private void renderMultiLine(PDPageContentStream contentStream, PDPage page, float x, float y, float height, String message) throws IOException {
-		int rotation = page.getRotation();
-		boolean rotate = rotation == 90 || rotation == 270;
-		for (String line: message.split("\n")) {
-			if (rotate) {
-				// rotate the text according to the page rotation
-				contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI / 2, x, y));
-				x += height;
-			} else {
-				contentStream.setTextMatrix(Matrix.getTranslateInstance(x, y));
-				y -= height;
-			}
-			contentStream.showText(line);
-		}
+		contentStream.beginText();
+		contentStream.setFont(font, fontSize);
+		contentStream.setNonStrokingColor(0.1f, 0.1f, 0.5f);
+		renderer.renderMultiLine(contentStream, page, xPosition, yPosition, stringHeight, message);
+		contentStream.endText();
 	}
 
 	private static Integer parseExhibitId(String id)

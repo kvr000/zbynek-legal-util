@@ -17,14 +17,23 @@ import org.apache.commons.compress.archivers.zip.StreamCompressor;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.inject.Inject;
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 
@@ -42,7 +51,11 @@ public class ZipCommand extends AbstractCommand
 	{
 		switch (arg) {
 		case "-s":
-			options.maxSize = SizeFormat.parseSize(needArgsParam(options.maxSize, args));
+			options.maxPart = SizeFormat.parseSize(needArgsParam(options.maxPart, args));
+			return true;
+
+		case "-a":
+			options.maxArchive = SizeFormat.parseSize(needArgsParam(options.maxPart, args));
 			return true;
 		}
 		return super.parseOption(context, arg, args);
@@ -57,6 +70,9 @@ public class ZipCommand extends AbstractCommand
 		if (mainOptions.getOutput() == null) {
 			return usage(context, "-o output file is mandatory");
 		}
+		if (options.maxPart != null && options.maxArchive != null) {
+			return usage(context, "-s and -a cannot be specified both");
+		}
 		return EXIT_CONTINUE;
 	}
 
@@ -70,32 +86,66 @@ public class ZipCommand extends AbstractCommand
 		filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
 		files = readListFile();
 
-		List<File> toCompress = new ArrayList<>();
+		List<Path> toCompress = new ArrayList<>();
+		for (Map.Entry<String, InputEntry> inputMapEntry : files.entrySet()) {
+			InputEntry inputEntry = inputMapEntry.getValue();
 
-		try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()), Optional.ofNullable(options.maxSize).orElse(18*1024*1024L))) {
-			archive.setEncoding("UTF-8");
-			for (Map.Entry<String, InputEntry> inputMapEntry : files.entrySet()) {
-				InputEntry inputEntry = inputMapEntry.getValue();
+			if (!Strings.isNullOrEmpty(inputEntry.filename)) {
+				File file = null;
+				try {
+					file = findFile(inputEntry.filename);
+				} catch (FileNotFoundException ex) {
+					log.error("Cannot find file: {}", inputEntry.filename);
+				}
+				if (file != null) {
+					toCompress.add(file.toPath());
+				}
+			}
 
-				if (!Strings.isNullOrEmpty(inputEntry.filename)) {
-					File file = null;
-					try {
-						file = findFile(inputEntry.filename);
-					} catch (FileNotFoundException ex) {
-						log.error("Cannot find file: {}", inputEntry.filename);
-					}
-					if (file != null) {
-						addArchiveFile(archive, file.toPath());
+			if (!Strings.isNullOrEmpty(inputEntry.media)) {
+				Path file = Paths.get(inputEntry.media);
+				if (Files.exists(file)) {
+					toCompress.add(file);
+				} else {
+					log.error("Cannot find file: {}", inputEntry.media);
+				}
+			}
+		}
+
+		if (options.maxPart != null) {
+			try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()), options.maxPart)) {
+				archive.setEncoding("UTF-8");
+				for (Path file: toCompress) {
+					addArchiveFile(archive, file);
+				}
+			}
+		}
+		else if (options.maxArchive != null) {
+			for (int archiveCounter = 0; !toCompress.isEmpty(); ++archiveCounter) {
+				try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(FilenameUtils.removeExtension(mainOptions.getOutput()) + String.format("-%04d.", archiveCounter) + FilenameUtils.getExtension(mainOptions.getOutput())))) {
+					archive.setEncoding("UTF-8");
+
+					for (int entriesCounter = 0; !toCompress.isEmpty(); ++entriesCounter) {
+						Pair<ZipArchiveEntry, ByteArrayOutputStream> entry = createRawEntry(archive, toCompress.get(0));
+
+						if (archive.getBytesWritten() + entry.getValue().size() + 512L*(entriesCounter+1) > options.maxArchive) {
+							break;
+						}
+						archive.addRawArchiveEntry(entry.getKey(), entry.getValue().toInputStream());
+						toCompress.remove(0);
 					}
 				}
+			}
+		}
+		else {
+			try (ZipArchiveOutputStream archive = new ZipArchiveOutputStream(Paths.get(mainOptions.getOutput()))) {
+				archive.setEncoding("UTF-8");
 
-				if (!Strings.isNullOrEmpty(inputEntry.media)) {
-					Path file = Paths.get(inputEntry.media);
-					if (Files.exists(file)) {
-						addArchiveFile(archive, file);
-					} else {
-						log.error("Cannot find file: {}", inputEntry.media);
-					}
+				while (!toCompress.isEmpty()) {
+					Pair<ZipArchiveEntry, ByteArrayOutputStream> entry = createRawEntry(archive, toCompress.get(0));
+
+					archive.addRawArchiveEntry(entry.getKey(), entry.getValue().toInputStream());
+					toCompress.remove(0);
 				}
 			}
 		}
@@ -106,14 +156,8 @@ public class ZipCommand extends AbstractCommand
 
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
-		if (filesIndex.getHeaders().get("SHA256") == null) {
-			throw new IllegalArgumentException("Key not found in index file: " + "SHA256");
-		}
 		if (filesIndex.getHeaders().get("Media") == null) {
 			throw new IllegalArgumentException("Key not found in index file: " + "Media");
-		}
-		if (filesIndex.getHeaders().get("Media SHA256") == null) {
-			throw new IllegalArgumentException("Key not found in index file: " + "Media SHA256");
 		}
 		return new IndexReader(filesIndex).readIndex(mainOptions.getListFileKeys().isEmpty() ? null : mainOptions.getListFileKeys()).entrySet().stream()
 				.collect(ImmutableMap.toImmutableMap(
@@ -145,6 +189,12 @@ public class ZipCommand extends AbstractCommand
 
 	private void addArchiveFile(ZipArchiveOutputStream archive, Path file) throws IOException
 	{
+		Pair<ZipArchiveEntry, ByteArrayOutputStream> entry = createRawEntry(archive, file);
+		archive.addRawArchiveEntry(entry.getKey(), entry.getValue().toInputStream());
+	}
+
+	private Pair<ZipArchiveEntry, ByteArrayOutputStream> createRawEntry(ZipArchiveOutputStream archive, Path file) throws IOException
+	{
 		ZipArchiveEntry entry = archive.createArchiveEntry(file, file.getFileName().toString());
 		ByteArrayBackingStore deflated = new ByteArrayBackingStore();
 		StreamCompressor compressor = StreamCompressor.create(9, deflated);
@@ -155,7 +205,8 @@ public class ZipCommand extends AbstractCommand
 		entry.setMethod(ZipArchiveEntry.DEFLATED);
 		entry.setCrc(compressor.getCrc32());
 		entry.setCompressedSize(deflated.output.size());
-		archive.addRawArchiveEntry(entry, deflated.getInputStream());
+
+		return Pair.of(entry, deflated.output);
 	}
 
 	protected Map<String, String> configParametersDescription(CommandContext context)
@@ -167,7 +218,8 @@ public class ZipCommand extends AbstractCommand
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context) {
 		return ImmutableMap.of(
-				"-s max-size[BKMGT]", "max size of archive part, default is bytes"
+				"-s max-part-size[BKMGT]", "max size of archive part, default is bytes",
+				"-a max-archive-size[BKMGT]", "max size of one archive, default is bytes"
 		);
 	}
 
@@ -175,7 +227,9 @@ public class ZipCommand extends AbstractCommand
 
 	public static class Options
 	{
-		Long maxSize;
+		Long maxPart;
+
+		Long maxArchive;
 	}
 
 	@Builder

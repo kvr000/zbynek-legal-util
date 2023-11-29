@@ -58,7 +58,7 @@ Downloads the files from remote storage locally
 zbynek-legal-format -l exhibit-inputs.tsv -o o.zip zip -s 10M
 ```
 
-Compresses all files into zip multiarchive, limiting size of one part to `-s` option (the default is 18 MB to fit into common email limits).
+Compresses all files into zip archive.  `-s size` splits into zip parts, `-a size` splits into complete zip archives.
 
 
 ### add-page-numbers

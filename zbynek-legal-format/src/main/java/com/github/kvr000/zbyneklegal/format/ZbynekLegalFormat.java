@@ -1,13 +1,21 @@
 package com.github.kvr000.zbyneklegal.format;
 
-import com.github.kvr000.zbyneklegal.format.command.*;
+import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
+import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
+import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
+import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
+import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
+import com.github.kvr000.zbyneklegal.format.command.ZipCommand;
 import com.github.kvr000.zbyneklegal.format.storage.DelegatingStorageRepository;
 import com.github.kvr000.zbyneklegal.format.storage.googledrive.GoogleDriveStorageRepository;
 import com.github.kvr000.zbyneklegal.format.storage.StorageRepository;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableMap;
-import com.google.inject.*;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Provides;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;

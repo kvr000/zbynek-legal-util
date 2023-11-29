@@ -19,7 +19,9 @@ import net.dryuf.cmdline.command.CommandContext;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import javax.inject.Inject;
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
