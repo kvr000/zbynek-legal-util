@@ -26,6 +26,13 @@ import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.interactive.action.PDAction;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionGoTo;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -264,6 +271,35 @@ public class JoinExhibitCommand extends AbstractCommand
 				}
 			}
 
+			Map<String, Integer> urlsPages = files.values().stream()
+					.filter(entry -> entry.url != null)
+					.collect(ImmutableMap.toImmutableMap(
+							e -> e.url,
+							e -> e.internalPageNumber
+					));
+			for (int i = 0; i < basePages; ++i) {
+				PDPage page = doc.getPage(i);
+				List<PDAnnotation> annotations = page.getAnnotations();
+
+				for (PDAnnotation annotation : annotations) {
+					if (annotation instanceof PDAnnotationLink link) {
+						PDAction action = link.getAction();
+						if (action instanceof PDActionURI actionUri) {
+							String uri = actionUri.getURI();
+							int targetPage = urlsPages.getOrDefault(uri, -1);
+							if (targetPage >= 0) {
+								PDPageFitDestination newTarget = new PDPageFitDestination();
+								newTarget.setPage(doc.getPage(targetPage));
+								PDActionGoTo actionPage = new PDActionGoTo();
+								actionPage.setDestination(newTarget);
+								link.setAction(actionPage);
+							}
+						}
+					}
+				}
+
+			}
+
 			if (!options.extract.isEmpty()) {
 				boolean extractOdd = true;
 				Set<Integer> pages = new TreeSet<>(Comparator.reverseOrder());
@@ -299,7 +335,6 @@ public class JoinExhibitCommand extends AbstractCommand
 					for (int page : pages) {
 						if (lastIncluded > page) {
 							for (--lastIncluded; lastIncluded >= ((page + 2) & ~1); --lastIncluded) {
-								log.info("Removing page: {}", lastIncluded);
 								doc.removePage(lastIncluded);
 							}
 						}
@@ -353,7 +388,15 @@ public class JoinExhibitCommand extends AbstractCommand
 
 		log.info("Exhibit map:\n{}", jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(files.values().stream()
 				.filter(e -> e.exhibitId != null)
-				.collect(ImmutableMap.toImmutableMap(e -> e.filename, e -> e.exhibitId + " p" + e.pageNumber))
+				.collect(ImmutableMap.toImmutableMap(
+						e -> e.filename,
+						e -> ImmutableMap.of(
+							"id", e.exhibitId,
+							"page", e.pageNumber,
+							"text", e.exhibitId + " p" + e.pageNumber,
+							"url", e.url
+						)
+				))
 		));
 
 		files.values().stream()
@@ -372,6 +415,7 @@ public class JoinExhibitCommand extends AbstractCommand
 								try {
 									return InputEntry.builder()
 											.filename(rec.getKey())
+											.url(filesIndex.getUrl(rec.getKey(), "Name"))
 											.swornPosition(Optional.ofNullable(rec.getValue().get("Sworn Pos"))
 													.map(Strings::emptyToNull)
 													.map(pos -> {
@@ -574,6 +618,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		@Builder.Default
 		int internalPageNumber = -1;
 		String exhibitId;
+		String url;
 
 		float width, height;
 
