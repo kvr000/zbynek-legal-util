@@ -27,7 +27,7 @@ public class IndexReader
         this.table = table;
         this.headers = table.getHeaders();
         this.entries = table.listEntries().entrySet().stream()
-                .filter(rec -> !rec.getKey().equals("BASE"))
+                .filter(rec -> !rec.getKey().equals("BASE") && !rec.getKey().equals("FILES"))
                 .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

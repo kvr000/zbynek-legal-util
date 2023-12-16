@@ -28,9 +28,28 @@ The base page and base exhibit id are taken from the `BASE` entry unless specifi
 - `--base base-document` : base document to start with
 - `-a page-number` : first page number (default 1)
 - `-s sworn-text` : sworn stamp text, can contain placeholders in {key} form
+- `--sa` : set sworn stamp text to affirmed, can contain placeholders in {key} form
+- `--ss` : set sworn stamp text to sworn, can contain placeholders in {key} form
 - `-t key=value` : substituted values for templates Pg
+- `--tt` : read substituted values from Text sheet from index file
+- `--ta` : read substituted values from Text sheet from index file and date from first -k option (default if no -t is specified)
+- `--tn` : do not read substituted values from Text sheet from index file
 - `--extract what (multi)` : extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) odd (odd-even pair)
 - `-i` : ignore errors, such as file not found
+
+#### Configuration
+
+`join-exhibit` command reads the following configuration from index file:
+
+Sheet `config`, header `key` and `value` :
+- `exhibitTemplateName` : can be either `swear` or `affirm`
+- `exhibitTemplateText` : contains full text for Exhibit sworn/affirmed statement.  The `{id}` mark the text substitions
+
+Sheet `text`, header `key` and `value` :
+- `name` : name of applicant
+- `date` : date of submission
+- `province` : province name
+- ... : anything else that is contained in Exhibit Template (only above and dynamic `exhibitId` are supported by default templates)
 
 
 ### update-checksum

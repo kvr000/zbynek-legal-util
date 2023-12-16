@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -44,50 +46,50 @@ public class XlsTableUpdator extends AbstractTableUpdator
     {
         super(path, idColumn);
 
-            try (InputStream reader = Files.newInputStream(path)) {
-                workbook = new XSSFWorkbook(reader);
-                sheet = workbook.getSheetAt(0);
-                Row header = sheet.getRow(0);
-                headerNames = spareMapToList(StreamSupport.stream(header.spliterator(), false)
-                        .collect(ImmutableMap.toImmutableMap(cell -> cell.getColumnIndex(), cell -> getCellString(cell))));
-                headers = Streams.zip(
-                                Stream.of(headerNames),
-                                IntStream.range(0, Integer.MAX_VALUE).boxed(),
-                                AbstractMap.SimpleImmutableEntry::new
-                        )
-                        .filter(p -> p.getKey() != null)
-                        .collect(ImmutableMap.toImmutableMap(p -> p.getKey(), p -> p.getValue()));
-                Integer keyPosition = headers.get(idColumn);
-                if (keyPosition == null) {
-                    throw new IllegalArgumentException("Key not found in XLS file: " + idColumn);
-                }
-
-                records = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
-                        .mapToObj(rowId -> sheet.getRow(rowId))
-                        .skip(1)
-                        .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)
-                                .filter(cell -> headerNames[cell.getColumnIndex()] != null)
-                                .collect(ImmutableMap.toImmutableMap(
-                                        cell -> headerNames[cell.getColumnIndex()],
-                                        cell -> Strings.nullToEmpty(getCellString(cell))
-                                ))
-                        )
-                        .toList();
-                values = records.stream()
-                        .filter(rec -> !Strings.isNullOrEmpty(rec.get(idColumn)))
-                        .collect(ImmutableMap.toImmutableMap(
-                                rec -> rec.get(idColumn),
-                                rec -> rec
-                        ));
-                idToRow = Streams.zip(
-                        records.stream(),
-                        IntStream.rangeClosed(1, Integer.MAX_VALUE).boxed(),
-                        AbstractMap.SimpleImmutableEntry::new
-                )
-                        .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey().get(idColumn), entry.getValue()))
-                        .filter(entry -> !Strings.isNullOrEmpty(entry.getKey()))
-                        .collect(ImmutableMap.toImmutableMap(entry -> entry.getKey(), entry -> entry.getValue()));
+        try (InputStream reader = Files.newInputStream(path)) {
+            workbook = new XSSFWorkbook(reader);
+            sheet = workbook.getSheetAt(0);
+            Row header = sheet.getRow(0);
+            headerNames = spareMapToList(StreamSupport.stream(header.spliterator(), false)
+                    .collect(ImmutableMap.toImmutableMap(cell -> cell.getColumnIndex(), cell -> getCellString(cell))));
+            headers = Streams.zip(
+                            Stream.of(headerNames),
+                            IntStream.range(0, Integer.MAX_VALUE).boxed(),
+                            AbstractMap.SimpleImmutableEntry::new
+                    )
+                    .filter(p -> p.getKey() != null)
+                    .collect(ImmutableMap.toImmutableMap(p -> p.getKey(), p -> p.getValue()));
+            Integer keyPosition = headers.get(idColumn);
+            if (keyPosition == null) {
+                throw new IllegalArgumentException("Key not found in XLS file: " + idColumn);
             }
+
+            records = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
+                    .mapToObj(rowId -> sheet.getRow(rowId))
+                    .skip(1)
+                    .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)
+                            .filter(cell -> headerNames[cell.getColumnIndex()] != null)
+                            .collect(ImmutableMap.toImmutableMap(
+                                    cell -> headerNames[cell.getColumnIndex()],
+                                    cell -> Strings.nullToEmpty(getCellString(cell))
+                            ))
+                    )
+                    .toList();
+            values = records.stream()
+                    .filter(rec -> !Strings.isNullOrEmpty(rec.get(idColumn)))
+                    .collect(ImmutableMap.toImmutableMap(
+                            rec -> rec.get(idColumn),
+                            rec -> rec
+                    ));
+            idToRow = Streams.zip(
+                            records.stream(),
+                            IntStream.rangeClosed(1, Integer.MAX_VALUE).boxed(),
+                            AbstractMap.SimpleImmutableEntry::new
+                    )
+                    .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey().get(idColumn), entry.getValue()))
+                    .filter(entry -> !Strings.isNullOrEmpty(entry.getKey()))
+                    .collect(ImmutableMap.toImmutableMap(entry -> entry.getKey(), entry -> entry.getValue()));
+        }
     }
 
     public Map<String, Map<String, String>> listEntries()
@@ -118,6 +120,43 @@ public class XlsTableUpdator extends AbstractTableUpdator
         catch (Exception ex) {
             throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);
         }
+    }
+
+    public Map<String, Map<String, String>> readSheet(String name, String key) throws IOException
+    {
+        Sheet sheet = workbook.getSheet(name);
+        if (sheet == null) {
+            throw new FileNotFoundException("Sheet not found: sheet=" + name);
+        }
+        Row header = sheet.getRow(0);
+        String[] names = spareMapToList(StreamSupport.stream(header.spliterator(), false)
+                .collect(ImmutableMap.toImmutableMap(cell -> cell.getColumnIndex(), cell -> getCellString(cell))));
+        Map<String, Integer> headersMap = Streams.zip(
+                        Stream.of(names),
+                        IntStream.range(0, Integer.MAX_VALUE).boxed(),
+                        AbstractMap.SimpleImmutableEntry::new
+                )
+                .filter(p -> p.getKey() != null)
+                .collect(ImmutableMap.toImmutableMap(p -> p.getKey(), p -> p.getValue()));
+        Integer keyPosition = headersMap.get(key);
+        if (keyPosition == null) {
+            throw new IllegalArgumentException("Key not found in XLS file: sheet=" + name + " key=" + key);
+        }
+
+        return StreamSupport.stream(sheet.spliterator(), false)
+                .skip(1)
+                .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)
+                        .filter(cell -> names[cell.getColumnIndex()] != null)
+                        .collect(ImmutableMap.toImmutableMap(
+                                cell -> names[cell.getColumnIndex()],
+                                cell -> Strings.nullToEmpty(getCellString(cell))
+                        ))
+                )
+                .filter(row -> !Strings.isNullOrEmpty(row.get(key)))
+                .collect(ImmutableMap.toImmutableMap(
+                        row -> row.get(key),
+                        row -> row
+                ));
     }
 
     public void save() throws IOException

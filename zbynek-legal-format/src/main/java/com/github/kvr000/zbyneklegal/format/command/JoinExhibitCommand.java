@@ -6,6 +6,7 @@ import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -13,6 +14,8 @@ import com.google.common.collect.ImmutableMap;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import net.dryuf.base.function.ThrowingBiConsumer;
+import net.dryuf.base.function.ThrowingRunnable;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
 import org.apache.commons.io.IOUtils;
@@ -31,7 +34,6 @@ import org.apache.pdfbox.pdmodel.interactive.action.PDActionGoTo;
 import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
-import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination;
 
 import javax.inject.Inject;
@@ -40,12 +42,15 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -53,6 +58,8 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,11 +68,33 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class JoinExhibitCommand extends AbstractCommand
 {
-	public static final String DEFAULT_EXHIBIT_SWEAR =
+	public static final Pattern DATE_WITH_SUFFIX_PATTERN = Pattern.compile("^(\\d{4})(\\d{2})(\\d{2})-.*$");
+
+	DateTimeFormatter SWORN_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MMM/dd", Locale.ROOT);
+
+	public static final String DEFAULT_EXHIBIT_SWEAR_AFFIRM =
 			"""
 					This is Exhibit "{exhibit}" referred to in the affidavit of
 					{name}                    {date}
 					sworn (or affirmed) before me on [dd/mmm/yyyy]
+
+					___________________________________________
+					A Commissioner for taking Affidavits for {province}""";
+
+	public static final String EXHIBIT_SWEAR =
+			"""
+					This is Exhibit "{exhibit}" referred to in the affidavit of
+					{name}                    {date}
+					sworn before me on [dd/mmm/yyyy]
+
+					___________________________________________
+					A Commissioner for taking Affidavits for {province}""";
+
+	public static final String EXHIBIT_AFFIRM =
+			"""
+					This is Exhibit "{exhibit}" referred to in the affidavit of
+					{name}                    {date}
+					affirmed before me on [dd/mmm/yyyy]
 
 					___________________________________________
 					A Commissioner for taking Affidavits for {province}""";
@@ -120,6 +149,16 @@ public class JoinExhibitCommand extends AbstractCommand
 			options.swornText = needArgsParam(options.swornText, args);
 			return true;
 
+		case "--sa":
+			Preconditions.checkArgument(options.swornText == null, "sworn/affirmed text already provided");
+			options.swornText = EXHIBIT_AFFIRM;
+			return true;
+
+		case "--ss":
+			Preconditions.checkArgument(options.swornText == null, "sworn/affirmed text already provided");
+			options.swornText = EXHIBIT_SWEAR;
+			return true;
+
 		case "-t":
 			String[] values = needArgsParam(null, args).split("=", 2);
 			if (values.length != 2) {
@@ -128,6 +167,21 @@ public class JoinExhibitCommand extends AbstractCommand
 				throw new IllegalArgumentException("Key already specified for -s option: " + values[0]);
 			}
 			options.substitutes.put(values[0], values[1]);
+			return true;
+
+		case "--tt":
+			Preconditions.checkArgument(options.substituteSource == null, "substitute source already provided");
+			options.substituteSource = this::readSubstitutesTable;
+			return true;
+
+		case "--ta":
+			Preconditions.checkArgument(options.substituteSource == null, "substitute source already provided");
+			options.substituteSource = this::readSubstitutesTableAndDate;
+			return true;
+
+		case "--tn":
+			Preconditions.checkArgument(options.substituteSource == null, "substitute source already provided");
+			options.substituteSource = () -> {};
 			return true;
 
 		case "-i":
@@ -157,11 +211,11 @@ public class JoinExhibitCommand extends AbstractCommand
 		if (options.code != null) {
 			return EXIT_CONTINUE;
 		}
-		if (mainOptions.getOutput() == null) {
-			return usage(context, "-o output option is mandatory");
-		}
 		if ((options.inputs == null) == (mainOptions.getListFile() == null)) {
 			return usage(context, "input files or -l listfile required");
+		}
+		if (options.substituteSource == null && options.substitutes.isEmpty()) {
+			options.substituteSource = this::readSubstitutesTableAndDate;
 		}
 		if ((mainOptions.getListFile() == null) != (mainOptions.getListFileKeys().isEmpty())) {
 			return usage(context, "none of both listFile and listFileKey should be provided");
@@ -170,6 +224,13 @@ public class JoinExhibitCommand extends AbstractCommand
 			log.info("Multiple exhibit sets specified, only the first one will be considered for BASE purposes");
 		}
 		return EXIT_CONTINUE;
+	}
+
+	protected void revalidateOptions() throws Exception
+	{
+		if (mainOptions.getOutput() == null) {
+			throw new IOException("Output file not specified, neither as parameter, nor at index file in Pg section");
+		}
 	}
 
 	@Override
@@ -201,6 +262,8 @@ public class JoinExhibitCommand extends AbstractCommand
 						.map(Integer::parseInt)
 						.orElse(null);
 			}
+			readIndexConfig();
+			readIndexIo();
 		}
 		else {
 			files = options.inputs.stream()
@@ -211,6 +274,13 @@ public class JoinExhibitCommand extends AbstractCommand
 							LinkedHashMap::new
 					));
 		}
+
+		if (options.substituteSource != null) {
+			options.substituteSource.run();
+		}
+
+		revalidateOptions();
+
 		try (PDDocument doc = options.base == null ? new PDDocument() : Loader.loadPDF(new File(options.base))) {
 
 			basePages = doc.getNumberOfPages();
@@ -225,7 +295,7 @@ public class JoinExhibitCommand extends AbstractCommand
 				options.firstExhibit = 0;
 			}
 			if (options.swornText == null) {
-				options.swornText = DEFAULT_EXHIBIT_SWEAR;
+				options.swornText = DEFAULT_EXHIBIT_SWEAR_AFFIRM;
 			}
 
 			exhibitCounter = options.firstExhibit;
@@ -453,6 +523,95 @@ public class JoinExhibitCommand extends AbstractCommand
 		filesIndex.save();
 	}
 
+	private void readIndexConfig() throws IOException
+	{
+		Map<String, Map<String, String>> values;
+		try {
+			values = filesIndex.readSheet("config", "key");
+		}
+		catch (FileNotFoundException ex) {
+			log.warn("Sheet 'config' not found in provided index file, skipping");
+			return;
+		}
+		for (Map.Entry<String, Map<String, String>> entry: values.entrySet()) {
+			String value = Optional.ofNullable(entry.getValue().get("value"))
+					.orElseThrow(() -> new IOException("Cannot find column: column=value"));
+			switch (entry.getKey()) {
+				case "exhibitTemplateName" -> {
+					if (options.swornText == null) {
+						switch (value) {
+							case "swear" -> options.swornText = EXHIBIT_SWEAR;
+							case "affirm" -> options.swornText = EXHIBIT_AFFIRM;
+							default ->
+									throw new IOException("Value for exhibitTemplate unsupported: got=" + value + " supported=swear,affirm");
+						}
+					}
+				}
+				case "exhibitTemplateText" -> {
+					if (options.swornText == null) {
+						options.swornText = value;
+					}
+				}
+				default ->
+						throw new IOException("Unknown config option=" + entry.getKey() + " supported=exhibitTemplateName");
+			}
+		}
+	}
+
+	private void readIndexIo() throws IOException
+	{
+		if (mainOptions.getOutput() == null) {
+			if (mainOptions.getListFileKeys().isEmpty()) {
+				throw new IOException("No output file provided, nor index key");
+			}
+			mainOptions.setOutput(
+					Optional.ofNullable(filesIndex.getOptionalValue("FILES", mainOptions.getListFileKeys().get(0) + " Pg"))
+							.filter(Predicate.not(Strings::isNullOrEmpty))
+							.orElse(null)
+			);
+		}
+		if (options.base == null) {
+			if (!mainOptions.getListFileKeys().isEmpty()) {
+				options.base =
+						Optional.ofNullable(filesIndex.getOptionalValue("FILES", mainOptions.getListFileKeys().get(0) + " Exh"))
+								.filter(Predicate.not(Strings::isNullOrEmpty))
+								.orElse(null);
+			}
+		}
+	}
+
+	private void readSubstitutesTable() throws IOException
+	{
+		Map<String, Map<String, String>> values;
+		try {
+			values = filesIndex.readSheet("text", "key");
+			values.forEach(ThrowingBiConsumer.sneaky((key, value) -> {
+				options.substitutes.putIfAbsent(key, Optional.ofNullable(value.get("value"))
+						.orElseThrow(() -> new IOException("Cannot find column: column=value"))
+				);
+			}));
+		}
+		catch (IOException ex) {
+			throw new IOException("Cannot read substitutes table: " + ex, ex);
+		}
+	}
+
+	private void readSubstitutesTableAndDate() throws IOException
+	{
+		if (mainOptions.getListFileKeys().size() != 1) {
+			throw new IOException("index key must be specified exactly once (option -k)");
+		}
+		Matcher matcher = DATE_WITH_SUFFIX_PATTERN.matcher(mainOptions.getListFileKeys().get(0));
+		if (!matcher.matches()) {
+			throw new IOException("index key does not match date pattern yyyymmdd: " + mainOptions.getListFileKeys().get(0));
+		}
+		options.substitutes.computeIfAbsent("date", key ->
+				LocalDate.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)), Integer.parseInt(matcher.group(3)))
+				.format(SWORN_DATE_FORMATTER)
+		);
+		readSubstitutesTable();
+	}
+
 	private File findFile(String name) throws IOException
 	{
 		File out;
@@ -559,15 +718,20 @@ public class JoinExhibitCommand extends AbstractCommand
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
-		return ImmutableMap.of(
-			"--code id", "prints supporting code, omit the id for list",
-			"--base base-document", "base document to start with",
-			"-a page-number", "first page number (default 1)",
-			"-s sworn-text", "sworn stamp text, can contain placeholders in {key} form",
-			"-t key=value", "substituted values for templates",
-			"--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) odd (odd-even pair)",
-			"-i", "ignore errors, such as file not found"
-		);
+		return ImmutableMap.<String, String>builder()
+				.put("--code id", "prints supporting code, omit the id for list")
+				.put("--base base-document", "base document to start with")
+				.put("-a page-number", "first page number (default 1)")
+				.put("-s sworn-text", "sworn stamp text, can contain placeholders in {key} form")
+				.put("--sa", "set sworn stamp text to affirmed, can contain placeholders in {key} form")
+				.put("--ss", "set sworn stamp text to sworn, can contain placeholders in {key} form")
+				.put("-t key=value", "substituted values for templates")
+				.put("--tt", "read substituted values from 'text' sheet (key, value columns) from index file")
+				.put("--ta", "read substituted values from 'text' sheet (key, value columns) from index file and date from first -k option (default if no -t is specified)")
+				.put("--tn", "do not read substituted values from Text sheet from index file")
+				.put("--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) pair-odd (odd-even pair)")
+				.put("-i", "ignore errors, such as file not found")
+				.build();
 	}
 
 	protected Map<String, String> configParametersDescription(CommandContext context)
@@ -606,6 +770,8 @@ public class JoinExhibitCommand extends AbstractCommand
 		private boolean ignoreMissing = false;
 
 		private final Map<String, String> substitutes = new LinkedHashMap<>();
+
+		private ThrowingRunnable<IOException> substituteSource;
 	}
 
 	@Builder
