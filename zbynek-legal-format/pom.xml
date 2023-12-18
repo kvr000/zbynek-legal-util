@@ -20,7 +20,7 @@
 
 		<log4j.version>2.17.2</log4j.version>
 
-		<guava.version>31.1-jre</guava.version>
+		<guava.version>32.1.3-jre</guava.version>
 
 		<commons-lang3.version>3.4</commons-lang3.version>
 		<commons-io.version>2.11.0</commons-io.version>
@@ -32,7 +32,7 @@
 		<jackson.version>2.13.2</jackson.version>
 
 		<dryuf-cmdline.version>1.0.1</dryuf-cmdline.version>
-		<dryuf-base.version>1.8.1</dryuf-base.version>
+		<dryuf-base.version>1.8.2</dryuf-base.version>
 
 		<pdfbox.version>3.0.0</pdfbox.version>
 

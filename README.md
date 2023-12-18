@@ -92,13 +92,32 @@ page specified in `-p` parameter (starting at `-a` argument) or `-f` parameter
 pages.
 
 
-### split-pdf
+### pdf-split
 
 ```
-zbynek-legal-format -o output.pdf split-pdf -s max-size -page -p max-pages input1.pdf input2.pdf ...
+zbynek-legal-format -o output.pdf pdf-split -s max-size -p max-pages -g page-group-size input1.pdf input2.pdf ...
 ```
 
 The command joins input files into a destination and split into output-0xyz.pdf files based on max-size or max page length.
+
+#### Options
+
+- `-s max-size[BKMG]` : max file size
+- `-p page-count` : max number of pages
+- `-g group-size` : number of pages to group together (default is 2)
+
+
+### pdf-replace
+
+```
+zbynek-legal-format -o main.pdf pdf-replace -i input-file -m destination=source -m destination=source ...
+```
+
+#### Options
+
+Options:
+- `-i input-file` : input file for operation
+- `-m destinationPage[=sourcePage]` : moves sourcePage to destinationPage (same page if sourcePage not provided)
 
 
 ### General Options

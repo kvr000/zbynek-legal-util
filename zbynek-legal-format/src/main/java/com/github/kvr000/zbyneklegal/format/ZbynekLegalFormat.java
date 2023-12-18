@@ -2,6 +2,7 @@ package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
+import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
 import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
 import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
@@ -118,6 +119,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"zip", ZipCommand.class,
 			"add-page-numbers", AddPageNumbersCommand.class,
 			"pdf-split", PdfSplitCommand.class,
+			"pdf-replace", PdfReplaceCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -127,9 +129,11 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		return ImmutableMap.of(
 			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index",
 			"update-checksum", "Calculates files checksum and updates index",
-			"add-page-numbers", "Add page numbers and merge the files",
 			"sync-files", "Synchronize files from remote storage",
 			"zip", "Zips files into multiarchive",
+			"add-page-numbers", "Add page numbers and merge the files",
+			"pdf-split", "Splits pdf by size or number of pages",
+			"pdf-replace", "Replaces pages in pdf",
 			"help [command]", "Prints help"
 		);
 	}

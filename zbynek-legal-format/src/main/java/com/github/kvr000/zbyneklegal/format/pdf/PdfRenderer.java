@@ -1,10 +1,12 @@
 package com.github.kvr000.zbyneklegal.format.pdf;
 
-import lombok.RequiredArgsConstructor;
+import com.google.common.collect.ImmutableList;
 import lombok.extern.log4j.Log4j2;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
@@ -12,13 +14,23 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.stream.IntStream;
 
 
 @Log4j2
-@RequiredArgsConstructor
 public class PdfRenderer implements AutoCloseable
 {
 	private final PDDocument document;
+
+	private final PDFMergerUtility merger;
+
+	public PdfRenderer(PDDocument document)
+	{
+		this.document = document;
+		this.merger = new PDFMergerUtility();
+	}
 
 	public boolean isRotated(PDPage page)
 	{
@@ -98,6 +110,32 @@ public class PdfRenderer implements AutoCloseable
 			}
 			contentStream.showText(line);
 		}
+	}
+
+	public List<PDPage> cloneSourcePages(DocumentWrapper source)
+	{
+		int numberOfPages = document.getNumberOfPages();
+		try {
+			merger.appendDocument(document, source.getFreshDocument());
+			return IntStream.range(numberOfPages, document.getNumberOfPages())
+					.mapToObj(document::getPage)
+					.collect(ImmutableList.toImmutableList());
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+		finally {
+			for (int i = document.getNumberOfPages(); --i >= numberOfPages; ) {
+				document.removePage(i);
+			}
+		}
+	}
+
+	public void replacePage(int destination, PDPage source)
+	{
+		PDPageTree pageTree = document.getDocumentCatalog().getPages();
+		pageTree.insertAfter(source, document.getPage(destination));
+		pageTree.remove(destination);
 	}
 
 	@Override

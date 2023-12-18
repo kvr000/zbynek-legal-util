@@ -125,11 +125,11 @@ public class JoinExhibitCommand extends AbstractCommand
 			case "last":
 			case "exhibit-first":
 			case "single":
-			case "pair-odd":
+			case "pair-even":
 				break;
 
 			default:
-				throw new IllegalArgumentException("Invalid value, allowed: first last exhibit-first single pair-odd");
+				throw new IllegalArgumentException("Invalid value, allowed: first last exhibit-first single pair-even");
 			}
 			return true;
 
@@ -304,7 +304,7 @@ public class JoinExhibitCommand extends AbstractCommand
 				InputEntry inputEntry = inputMapEntry.getValue();
 				File inputFile;
 				try {
-					inputFile = findFile(inputMapEntry.getKey());
+					inputFile = findPdfFile(inputMapEntry.getKey());
 				} catch (FileNotFoundException ex) {
 					inputEntry.error = ex;
 					if (options.ignoreMissing) {
@@ -371,7 +371,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			}
 
 			if (!options.extract.isEmpty()) {
-				boolean extractOdd = true;
+				boolean extractEven = true;
 				Set<Integer> pages = new TreeSet<>(Comparator.reverseOrder());
 				for (String command: options.extract) {
 					switch (command) {
@@ -392,16 +392,16 @@ public class JoinExhibitCommand extends AbstractCommand
 						break;
 
 					case "single":
-						extractOdd = false;
+						extractEven = false;
 						break;
 
-					case "pair-odd":
-						extractOdd = true;
+					case "pair-even":
+						extractEven = true;
 						break;
 					}
 				}
 				int lastIncluded = doc.getNumberOfPages();
-				if (extractOdd) {
+				if (extractEven) {
 					for (int page : pages) {
 						if (lastIncluded > page) {
 							for (--lastIncluded; lastIncluded >= ((page + 2) & ~1); --lastIncluded) {
@@ -612,7 +612,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		readSubstitutesTable();
 	}
 
-	private File findFile(String name) throws IOException
+	private File findPdfFile(String name) throws IOException
 	{
 		File out;
 		if ((out = new File(name)).exists()) {
@@ -729,7 +729,7 @@ public class JoinExhibitCommand extends AbstractCommand
 				.put("--tt", "read substituted values from 'text' sheet (key, value columns) from index file")
 				.put("--ta", "read substituted values from 'text' sheet (key, value columns) from index file and date from first -k option (default if no -t is specified)")
 				.put("--tn", "do not read substituted values from Text sheet from index file")
-				.put("--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) pair-odd (odd-even pair)")
+				.put("--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) pair-even (odd-even pair)")
 				.put("-i", "ignore errors, such as file not found")
 				.build();
 	}
