@@ -138,6 +138,12 @@ public class PdfRenderer implements AutoCloseable
 		pageTree.remove(destination);
 	}
 
+	public void insertBlankPage(int destination)
+	{
+		PDPageTree pageTree = document.getDocumentCatalog().getPages();
+		pageTree.insertBefore(new PDPage(), document.getPage(destination));
+	}
+
 	@Override
 	public void close()
 	{

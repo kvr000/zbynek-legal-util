@@ -51,6 +51,11 @@ public class PdfReplaceCommand extends AbstractCommand
 				}
 				return true;
 			}
+			case "-a" -> {
+				String addCommand = needArgsParam(null, args);
+				options.operations.add(Pair.of(Integer.parseInt(addCommand), null));
+				return true;
+			}
 		}
 		return super.parseOption(context, arg, args);
 	}
@@ -82,8 +87,13 @@ public class PdfReplaceCommand extends AbstractCommand
 					merger.appendDocument(doc, base);
 					List<PDPage> inputPages = renderer.cloneSourcePages(input);
 
-					for (Pair<Integer, Integer> move : options.operations) {
-						renderer.replacePage(move.getLeft()-1, inputPages.get(move.getRight()-1));
+					for (Pair<Integer, Integer> operation : options.operations) {
+						if (operation.getRight() == null) {
+							renderer.insertBlankPage(operation.getLeft());
+						}
+						else {
+							renderer.replacePage(operation.getLeft() - 1, inputPages.get(operation.getRight() - 1));
+						}
 					}
 
 					tmp = File.createTempFile("tmp", ".pdf");
@@ -104,7 +114,8 @@ public class PdfReplaceCommand extends AbstractCommand
 	{
 		return ImmutableMap.of(
 				"-i input-file", "input file for operation",
-				"-m destinationPage[=sourcePage]", "moves sourcePage to destinationPage (same page if sourcePage not provided)"
+				"-m destinationPage[=sourcePage]", "moves sourcePage to destinationPage (same page if sourcePage not provided)",
+				"-a destinationPage", "adds new blank page"
 		);
 	}
 
