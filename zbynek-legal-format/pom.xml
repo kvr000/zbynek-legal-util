@@ -36,6 +36,8 @@
 
 		<pdfbox.version>3.0.0</pdfbox.version>
 
+		<opencv.version>4.9.0-0</opencv.version>
+
 		<poi.version>5.2.0</poi.version>
 
 		<google-api-services-drive.version>v3-rev197-1.25.0</google-api-services-drive.version>
@@ -205,11 +207,21 @@
 			<version>${google-oauth-client-jetty.version}</version>
 		</dependency>
 
-		<!-- https://mvnrepository.com/artifact/org.apache.pdfbox/pdfbox -->
 		<dependency>
 			<groupId>org.apache.pdfbox</groupId>
 			<artifactId>pdfbox</artifactId>
 			<version>${pdfbox.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>jbig2-imageio</artifactId>
+			<version>${pdfbox.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.openpnp</groupId>
+			<artifactId>opencv</artifactId>
+			<version>${opencv.version}</version>
 		</dependency>
 
 		<dependency>

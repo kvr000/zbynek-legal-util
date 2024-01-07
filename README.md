@@ -109,6 +109,8 @@ The command joins input files into a destination and split into output-0xyz.pdf 
 
 ### pdf-replace
 
+The command replaces pages in output with provided pages from input.
+
 ```
 zbynek-legal-format -o main.pdf pdf-replace -i input-file -m destination=source -m destination=source ...
 ```
@@ -118,6 +120,23 @@ zbynek-legal-format -o main.pdf pdf-replace -i input-file -m destination=source 
 Options:
 - `-i input-file` : input file for operation
 - `-m destinationPage[=sourcePage]` : moves sourcePage to destinationPage (same page if sourcePage not provided)
+- `-a destinationPage` : adds blank page after `destinationPage`
+
+
+### merge-ink
+
+The command merges look-like-ink parts from `scanned-file` to original digital `base-file`, maintaining the digital
+quality.
+
+```
+zbynek-legal-format -o output.pdf merge-ink -b base-file -i scanned-file
+```
+
+#### Options
+
+- `-b base-file` : original digital file
+- `-i ink-file` : printed file with ink text to copy
+- `-f flip-till` : flip source image vertically till this page
 
 
 ### General Options

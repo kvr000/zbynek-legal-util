@@ -2,6 +2,7 @@ package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
+import com.github.kvr000.zbyneklegal.format.command.MergeInkCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
 import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
@@ -120,6 +121,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"add-page-numbers", AddPageNumbersCommand.class,
 			"pdf-split", PdfSplitCommand.class,
 			"pdf-replace", PdfReplaceCommand.class,
+			"merge-ink", MergeInkCommand.class,
 			"help", HelpOfHelpCommand.class
 		);
 	}
@@ -134,6 +136,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			"add-page-numbers", "Add page numbers and merge the files",
 			"pdf-split", "Splits pdf by size or number of pages",
 			"pdf-replace", "Replaces pages in pdf",
+			"merge-ink", "Merges ink from printed pages into original document",
 			"help [command]", "Prints help"
 		);
 	}
