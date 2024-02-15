@@ -31,8 +31,8 @@ The base page and base exhibit id are taken from the `BASE` entry unless specifi
 - `--sa` : set sworn stamp text to affirmed, can contain placeholders in {key} form
 - `--ss` : set sworn stamp text to sworn, can contain placeholders in {key} form
 - `-t key=value` : substituted values for templates Pg
-- `--tt` : read substituted values from Text sheet from index file
-- `--ta` : read substituted values from Text sheet from index file and date from first -k option (default if no -t is specified)
+- `--tt` : read substituted values from Text sheet from index file (default if no -t? is specified)
+- `--ta` : read substituted values from Text sheet from index file and date from first -k option
 - `--tn` : do not read substituted values from Text sheet from index file
 - `--extract what (multi)` : extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) odd (odd-even pair)
 - `-i` : ignore errors, such as file not found
