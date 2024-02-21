@@ -5,6 +5,8 @@ const exhibitMap =
 }
 ;
 
+
+
 function processExhibits()
 {
 	const doc = DocumentApp.getActiveDocument();
@@ -27,7 +29,6 @@ function processExhibitsSub(parent, used)
 	if (parent.getType() == DocumentApp.ElementType.TEXT) {
 		let text = parent.getText();
 		let match;
-		let replaced = false;
 		const urls = [];
 		for (let pos = 0; match = /(?<=["“”])((EXH(?:IBIT)?\s(?:\w+(?:\sp\d+)?|[--]|\w+(?:\sp\d+)?\s+[-]))\s([0-9][^"“”]+))(?=["“”])/.exec(text.substring(pos)); ) {
 			const exhibit = exhibitMap[match[3]];
@@ -40,19 +41,15 @@ function processExhibitsSub(parent, used)
 				//Logger.log("Exhibit replacement: " + match[2] + " to: " + exhibitId);
 				pos += match.index;
 				const replace = "EXHIBIT " + exhibitId + " " + match[3];
+				parent.deleteText(pos, pos + match[0].length - 1);
+				parent.insertText(pos, replace);
 				text = text.substring(0, pos) + replace + text.substring(pos+match[0].length);
 				if (exhibit['url']) {
+					parent.setLinkUrl(pos, pos + replace.length - 1, exhibit['url']);
 					urls.push([ pos, replace.length, exhibit['url']]);
 				}
 				pos += replace.length;
 				used[match[3]] = true;
-				replaced = true;
-			}
-		}
-		if (replaced) {
-			parent.setText(text);
-			for (const url of urls) {
-				parent.setLinkUrl(url[0], url[0] + url[1] - 1, url[2]);
 			}
 		}
 	}

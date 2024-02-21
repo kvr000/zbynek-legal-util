@@ -73,8 +73,8 @@ public class PdfRenderer implements AutoCloseable
 		float stringWidth = font.getStringWidth(message) * fontSize / 1000f;
 		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
 
-		float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 10);
-		float yPosition = rotate ? (pageWidth - stringWidth - 10) : (pageHeight - stringHeight - 10);
+		float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 20);
+		float yPosition = rotate ? (pageWidth - stringWidth - 20) : (pageHeight - stringHeight - 10);
 		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}\n",
 				number,
 				stringWidth, stringHeight,
