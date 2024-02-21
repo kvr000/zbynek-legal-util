@@ -216,7 +216,7 @@ public class JoinExhibitCommand extends AbstractCommand
 			return usage(context, "input files or -l listfile required");
 		}
 		if (options.substituteSource == null) {
-			options.substituteSource = this::readSubstitutesTable;
+			options.substituteSource = this::readSubstitutesTableAndDate;
 		}
 		if ((mainOptions.getListFile() == null) != (mainOptions.getListFileKeys().isEmpty())) {
 			return usage(context, "none of both listFile and listFileKey should be provided");
@@ -742,8 +742,8 @@ public class JoinExhibitCommand extends AbstractCommand
 				.put("--sa", "set sworn stamp text to affirmed, can contain placeholders in {key} form")
 				.put("--ss", "set sworn stamp text to sworn, can contain placeholders in {key} form")
 				.put("-t key=value", "substituted values for templates")
-				.put("--tt", "read substituted values from 'text' sheet (key, value columns) from index file (default if no --t? is specified)")
-				.put("--ta", "read substituted values from 'text' sheet (key, value columns) from index file and date from first -k option")
+				.put("--tt", "read substituted values from 'text' sheet (key, value columns) from index file")
+				.put("--ta", "read substituted values from 'text' sheet (key, value columns) from index file and date from first -k option (default)")
 				.put("--tn", "do not read substituted values from Text sheet from index file")
 				.put("--extract what (multi)", "extracts only subset of pages, possible values: first (first page) last (last page) exhibit-first (exhibit first pages) single (single page) pair-even (odd-even pair)")
 				.put("-i", "ignore errors, such as file not found")
