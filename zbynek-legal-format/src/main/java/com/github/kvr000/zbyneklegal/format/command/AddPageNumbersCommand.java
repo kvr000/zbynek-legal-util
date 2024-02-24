@@ -62,20 +62,20 @@ public class AddPageNumbersCommand extends AbstractCommand
 			);
 			return true;
 
-			case "-f":
-				options.markFiles.addAll(Arrays.stream(needArgsParam(null, args).split(","))
-						.flatMap(s -> {
-							if (s.indexOf('-') >= 0) {
-								String[] range = s.split("-", 2);
-								return IntStream.rangeClosed(Integer.parseInt(range[0]), Integer.parseInt(range[1])).boxed();
-							}
-							else {
-								return Stream.of(Integer.parseInt(s));
-							}
-						})
-						.toList()
-				);
-				return true;
+		case "-f":
+			options.markFiles.addAll(Arrays.stream(needArgsParam(null, args).split(","))
+					.flatMap(s -> {
+						if (s.indexOf('-') >= 0) {
+							String[] range = s.split("-", 2);
+							return IntStream.rangeClosed(Integer.parseInt(range[0]), Integer.parseInt(range[1])).boxed();
+						}
+						else {
+							return Stream.of(Integer.parseInt(s));
+						}
+					})
+					.toList()
+			);
+			return true;
 		}
 		return super.parseOption(context, arg, args);
 	}
@@ -127,7 +127,7 @@ public class AddPageNumbersCommand extends AbstractCommand
 						}
 						if ((options.markFiles.isEmpty() && options.markPages.isEmpty()) || options.markFiles.contains(fileCounter) || options.markPages.contains(pageCounter)) {
 							try (PDPageContentStream contentStream = new PDPageContentStream(input, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
-								renderer.renderPageNumber(contentStream, page, pageCounter++);
+								renderer.renderPageNumber(contentStream, page, pageCounter);
 							}
 						}
 						++pageCounter;

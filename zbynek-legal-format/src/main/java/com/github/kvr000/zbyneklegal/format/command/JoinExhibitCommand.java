@@ -71,7 +71,7 @@ public class JoinExhibitCommand extends AbstractCommand
 {
 	public static final Pattern DATE_WITH_SUFFIX_PATTERN = Pattern.compile("^(\\d{4})(\\d{2})(\\d{2})-.*$");
 
-	DateTimeFormatter SWORN_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MMM/dd", Locale.ROOT);
+	DateTimeFormatter SWORN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MMM/yyyy", Locale.ROOT);
 
 	public static final String DEFAULT_EXHIBIT_SWEAR_AFFIRM =
 			"""
