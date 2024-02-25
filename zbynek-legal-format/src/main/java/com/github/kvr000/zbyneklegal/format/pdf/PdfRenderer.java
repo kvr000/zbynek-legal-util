@@ -58,7 +58,12 @@ public class PdfRenderer implements AutoCloseable
 
 	public void renderPageNumber(PDPageContentStream contentStream, PDPage page, int number) throws IOException
 	{
-		String message = String.format("Pg %03d", number);
+		renderPageNumber(contentStream, page, "Pg %03d", number);
+	}
+
+	public void renderPageNumber(PDPageContentStream contentStream, PDPage page, String pattern, int number) throws IOException
+	{
+		String message = String.format(pattern, number);
 
 		PDRectangle pageSize = page.getMediaBox();
 
@@ -75,11 +80,54 @@ public class PdfRenderer implements AutoCloseable
 
 		float xPosition = rotate ? (stringHeight + 10) : (pageWidth - stringWidth - 20);
 		float yPosition = rotate ? (pageWidth - stringWidth - 20) : (pageHeight - stringHeight - 10);
-		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}\n",
-				number,
-				stringWidth, stringHeight,
-				pageWidth, pageHeight,
-				xPosition, yPosition
+		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}",
+			number,
+			stringWidth, stringHeight,
+			pageWidth, pageHeight,
+			xPosition, yPosition
+		);
+		// append the content to the existing stream
+		contentStream.beginText();
+		contentStream.setFont(font, fontSize);
+		contentStream.setNonStrokingColor(0.1f, 0.1f, 0.5f);
+		if (rotate) {
+			// rotate the text according to the page rotation
+			contentStream.setTextMatrix(Matrix.getRotateInstance(Math.PI / 2, xPosition, yPosition));
+		} else {
+			contentStream.setTextMatrix(Matrix.getTranslateInstance(xPosition, yPosition));
+		}
+		contentStream.showText(message);
+		contentStream.endText();
+	}
+
+	public void renderPageNumberAt(PDPageContentStream contentStream, PDPage page, float[] position, String pattern, int number) throws IOException
+	{
+		if (position == null) {
+			renderPageNumber(contentStream, page, pattern, number);
+			return;
+		}
+		String message = String.format(pattern, number);
+
+		PDRectangle pageSize = page.getMediaBox();
+
+		int rotation = page.getRotation();
+		boolean rotate = rotation == 90 || rotation == 270;
+		float pageWidth = rotate ? pageSize.getHeight() : pageSize.getWidth();
+		float pageHeight = rotate ? pageSize.getWidth() : pageSize.getHeight();
+
+		PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+		float fontSize = 20.0f * (pageHeight / 792.0f);
+
+		float stringWidth = font.getStringWidth(message) * fontSize / 1000f;
+		float stringHeight = font.getBoundingBox().getHeight() * fontSize / 1000f;
+
+		float xPosition = rotate ? (position[1]*pageHeight) : (position[0]*pageWidth);
+		float yPosition = rotate ? (position[0]*pageWidth) : (position[1]*pageHeight);
+		log.info("Page number: page={} sw={} sh={} width={} height={} x={} y={}",
+			number,
+			stringWidth, stringHeight,
+			pageWidth, pageHeight,
+			xPosition, yPosition
 		);
 		// append the content to the existing stream
 		contentStream.beginText();

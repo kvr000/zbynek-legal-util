@@ -33,8 +33,9 @@ public class PdfReplaceCommand extends AbstractCommand
 {
 	private final ZbynekLegalFormat.Options mainOptions;
 
-	private Options options = new Options();
+	private final Options options = new Options();
 
+	@Override
 	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception {
 		switch (arg) {
 			case "-i" -> {

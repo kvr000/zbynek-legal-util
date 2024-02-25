@@ -92,6 +92,21 @@ page specified in `-p` parameter (starting at `-a` argument) or `-f` parameter
 pages.
 
 
+### pdf-join
+
+```
+zbynek-legal-format -o output.pdf pdf-join -a first-page -p render-position -f page-format-pattern input1.pdf input2.pdf ...
+```
+
+The command joins input files into a destination and optionally adds page numbers.
+
+#### Options
+
+- `-a start-page` : add page numbers, starting with this parameter value
+- `-p x,y` : position to render page number to (range 0 - 1)
+- `-f page-number-pattern` : page number pattern, such as Page %02d
+
+
 ### pdf-split
 
 ```
