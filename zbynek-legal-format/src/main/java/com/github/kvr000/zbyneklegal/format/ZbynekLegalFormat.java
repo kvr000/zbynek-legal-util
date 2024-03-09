@@ -4,6 +4,7 @@ import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
 import com.github.kvr000.zbyneklegal.format.command.MergeInkCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfJoinCommand;
+import com.github.kvr000.zbyneklegal.format.command.PdfMetaCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
 import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
@@ -114,34 +115,36 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	@Override
 	protected Map<String, Class<? extends Command>> configSubCommands(CommandContext context)
 	{
-		return ImmutableMap.of(
-			"join-exhibit", JoinExhibitCommand.class,
-			"update-checksum", UpdateChecksumCommand.class,
-			"sync-files", SyncFilesCommand.class,
-			"zip", ZipCommand.class,
-			"add-page-numbers", AddPageNumbersCommand.class,
-			"pdf-join", PdfJoinCommand.class,
-			"pdf-split", PdfSplitCommand.class,
-			"pdf-replace", PdfReplaceCommand.class,
-			"merge-ink", MergeInkCommand.class,
-			"help", HelpOfHelpCommand.class
-		);
+		return ImmutableMap.<String, Class<? extends Command>>builder()
+			.put("join-exhibit", JoinExhibitCommand.class)
+			.put("update-checksum", UpdateChecksumCommand.class)
+			.put("sync-files", SyncFilesCommand.class)
+			.put("zip", ZipCommand.class)
+			.put("add-page-numbers", AddPageNumbersCommand.class)
+			.put("pdf-join", PdfJoinCommand.class)
+			.put("pdf-split", PdfSplitCommand.class)
+			.put("pdf-replace", PdfReplaceCommand.class)
+			.put("pdf-meta", PdfMetaCommand.class)
+			.put("merge-ink", MergeInkCommand.class)
+			.put("help", HelpOfHelpCommand.class)
+			.build();
 	}
 
 	protected Map<String, String> configCommandsDescription(CommandContext context)
 	{
-		return ImmutableMap.of(
-			"join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index",
-			"update-checksum", "Calculates files checksum and updates index",
-			"sync-files", "Synchronize files from remote storage",
-			"zip", "Zips files into multiarchive",
-			"add-page-numbers", "Add page numbers and merge the files",
-			"pdf-join", "Joins pdf files",
-			"pdf-split", "Splits pdf by size or number of pages",
-			"pdf-replace", "Replaces pages in pdf",
-			"merge-ink", "Merges ink from printed pages into original document",
-			"help [command]", "Prints help"
-		);
+		return ImmutableMap.<String, String>builder()
+			.put("join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index")
+			.put("update-checksum", "Calculates files checksum and updates index")
+			.put("sync-files", "Synchronize files from remote storage")
+			.put("zip", "Zips files into multiarchive")
+			.put("add-page-numbers", "Add page numbers and merge the files")
+			.put("pdf-join", "Joins pdf files")
+			.put("pdf-split", "Splits pdf by size or number of pages")
+			.put("pdf-replace", "Replaces pages in pdf")
+			.put("pdf-meta", "Shows meta fields from pdf")
+			.put("merge-ink", "Merges ink from printed pages into original document")
+			.put("help [command]", "Prints help")
+			.build();
 	}
 
 	@Data

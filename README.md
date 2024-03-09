@@ -132,10 +132,29 @@ zbynek-legal-format -o main.pdf pdf-replace -i input-file -m destination=source 
 
 #### Options
 
-Options:
 - `-i input-file` : input file for operation
 - `-m destinationPage[=sourcePage]` : moves sourcePage to destinationPage (same page if sourcePage not provided)
-- `-a destinationPage` : adds blank page after `destinationPage`
+- `-a destinationPage` : adds new blank page
+- `--title document-title` : sets document title
+- `--subject document-subject` : sets document subject
+- `--author document-author` : sets document author
+- `--replace-meta` : replace meta to original document (default is to keep)
+- `--meta-from document` : copy all meta from specified document
+- `--delete-all-meta` : delete all meta fields
+- `--delete-meta key` : delete meta field named key
+
+
+### pdf-meta
+
+The command prints PDF meta fields.
+
+```
+zbynek-legal-format -o main.pdf pdf-meta
+```
+
+#### Options
+
+N/A
 
 
 ### merge-ink
