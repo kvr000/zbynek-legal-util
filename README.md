@@ -3,6 +3,12 @@
 Command line utility to manipulate legal files.
 
 
+## Download
+
+- https://github.com/kvr000/zbynek-legal-util/releases/download/master/zbynek-legal-format
+- https://github.com/kvr000/zbynek-legal-util/releases/tag/master
+
+
 ## Usage
 
 ```
