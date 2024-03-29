@@ -3,6 +3,7 @@ package com.github.kvr000.zbyneklegal.format;
 import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
 import com.github.kvr000.zbyneklegal.format.command.MergeInkCommand;
+import com.github.kvr000.zbyneklegal.format.command.PdfDecompressCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfJoinCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfMetaCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
@@ -125,6 +126,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("pdf-split", PdfSplitCommand.class)
 			.put("pdf-replace", PdfReplaceCommand.class)
 			.put("pdf-meta", PdfMetaCommand.class)
+			.put("pdf-decompress", PdfDecompressCommand.class)
 			.put("merge-ink", MergeInkCommand.class)
 			.put("help", HelpOfHelpCommand.class)
 			.build();
@@ -142,6 +144,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("pdf-split", "Splits pdf by size or number of pages")
 			.put("pdf-replace", "Replaces pages in pdf")
 			.put("pdf-meta", "Shows meta fields from pdf")
+			.put("pdf-decompress", "Internally decompresses the pdf")
 			.put("merge-ink", "Merges ink from printed pages into original document")
 			.put("help [command]", "Prints help")
 			.build();

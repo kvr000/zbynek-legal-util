@@ -47,11 +47,11 @@ public class PdfJoinCommand extends AbstractCommand
 				options.pagePosition =  new float[]{ Float.parseFloat(pos[0]), Float.parseFloat(pos[1]) };
 				return true;
 			}
-		case "-f" -> {
-			options.pagePattern = needArgsParam(options.pagePattern, args);
-			String.format(options.pagePattern, 1);
-			return true;
-		}
+			case "-f" -> {
+				options.pagePattern = needArgsParam(options.pagePattern, args);
+				String.format(options.pagePattern, 1);
+				return true;
+			}
 		}
 		return super.parseOption(context, arg, args);
 	}
@@ -71,7 +71,11 @@ public class PdfJoinCommand extends AbstractCommand
 		}
 
 		if (options.inputs.isEmpty()) {
-			return usage(context, "-i input option is mandatory");
+			return usage(context, "inputs are mandatory");
+		}
+
+		if (options.pagePattern == null) {
+			options.pagePattern = "Pg %03d";
 		}
 
 		return EXIT_CONTINUE;

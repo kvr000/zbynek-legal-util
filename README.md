@@ -163,6 +163,19 @@ zbynek-legal-format -o main.pdf pdf-meta
 N/A
 
 
+### pdf-decompress
+
+The command internally decompresses PDF file.
+
+```
+zbynek-legal-format -o output.pdf pdf-decompress input.pdf
+```
+
+#### Options
+
+N/A
+
+
 ### merge-ink
 
 The command merges look-like-ink parts from `scanned-file` to original digital `base-file`, maintaining the digital
@@ -232,6 +245,10 @@ The code is released under version 2.0 of the [Apache License][].
 
 ## Stay in Touch
 
+Author: Zbynek Vyskovsky
+
 Feel free to contact me at kvr000@gmail.com  and http://github.com/kvr000/ and http://github.com/kvr000/zbynek-legal-util/
+
+LinkedIn: https://www.linkedin.com/in/zbynek-vyskovsky/
 
 [Apache License]: http://www.apache.org/licenses/LICENSE-2.0
