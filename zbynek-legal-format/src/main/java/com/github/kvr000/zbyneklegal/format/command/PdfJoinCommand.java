@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.pdf.PdfFiles;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
@@ -17,6 +18,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -27,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class PdfJoinCommand extends AbstractCommand
 {
+	private final PdfFiles pdfFiles;
+
 	private final ZbynekLegalFormat.Options mainOptions;
 
 	private final Options options = new Options();
@@ -35,6 +39,18 @@ public class PdfJoinCommand extends AbstractCommand
 	protected boolean parseOption(CommandContext context, String arg, ListIterator<String> args) throws Exception
 	{
 		switch (arg) {
+			case "--decompress" -> {
+				options.decompress = true;
+				return true;
+			}
+			case "--append" -> {
+				options.append = true;
+				return true;
+			}
+			case "--skip-first" -> {
+				options.skipFirst = true;
+				return true;
+			}
 			case "-a" -> {
 				options.firstPage = Integer.parseInt(needArgsParam(options.firstPage, args));
 				return true;
@@ -86,14 +102,24 @@ public class PdfJoinCommand extends AbstractCommand
 	{
 		Stopwatch watch = Stopwatch.createStarted();
 
-		int internalPageCounter = 0;
-		try (PDDocument doc = new PDDocument(); PdfRenderer renderer = new PdfRenderer(doc)) {
+		try (
+			PDDocument doc = options.append ? Loader.loadPDF(new File(mainOptions.getOutput())) : new PDDocument();
+			PdfRenderer renderer = new PdfRenderer(doc)
+		) {
+			int internalPageCounter = doc.getNumberOfPages();
+			int inputCounter = 0;
 			PDFMergerUtility merger = new PDFMergerUtility();
 			for (String inputName: options.inputs) {
 				try (PDDocument input = Loader.loadPDF(new File(inputName))) {
+					if (options.decompress) {
+						pdfFiles.decompress(input);
+					}
 					merger.appendDocument(doc, input);
 					if (options.firstPage != null) {
 						for (; internalPageCounter < doc.getNumberOfPages(); ++internalPageCounter) {
+							if (inputCounter == 0 && options.skipFirst) {
+								continue;
+							}
 							PDPage page = doc.getPage(internalPageCounter);
 							try (PDPageContentStream contentStream = new PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 								renderer.renderPageNumberAt(contentStream, page, options.pagePosition, options.pagePattern, options.firstPage + internalPageCounter);
@@ -101,8 +127,9 @@ public class PdfJoinCommand extends AbstractCommand
 						}
 					}
 				}
+				++inputCounter;
 			}
-			doc.save(mainOptions.getOutput());
+			pdfFiles.saveViaTmp(doc, Paths.get(mainOptions.getOutput()));
 		}
 
 		log.info("Processed in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
@@ -113,6 +140,9 @@ public class PdfJoinCommand extends AbstractCommand
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
 		return ImmutableMap.of(
+			"--decompress", "decompress input files",
+			"--append", "append to output",
+			"--skip-first", "do not modify first file (typically when appending)",
 			"-a start-page", "add page numbers, starting with this parameter value",
 			"-p x,y", "position to render page number to (range 0 - 1)",
 			"-f page-number-pattern", "page number pattern, such as Page %02d"
@@ -121,6 +151,12 @@ public class PdfJoinCommand extends AbstractCommand
 
 	public static class Options
 	{
+		boolean decompress;
+
+		boolean append;
+
+		boolean skipFirst;
+
 		List<String> inputs;
 
 		Integer firstPage;

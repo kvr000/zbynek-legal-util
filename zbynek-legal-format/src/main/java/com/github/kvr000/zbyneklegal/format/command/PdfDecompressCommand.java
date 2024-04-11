@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.pdf.PdfFiles;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -21,6 +22,7 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class PdfDecompressCommand extends AbstractCommand
 {
+	private final PdfFiles pdfFiles;
+
 	private final ZbynekLegalFormat.Options mainOptions;
 
 	private final Options options = new Options();
@@ -50,7 +54,7 @@ public class PdfDecompressCommand extends AbstractCommand
 		}
 
 		if (options.inputs.size() != 1) {
-			return usage(context, "input file is mandatory");
+			return usage(context, "single input file is mandatory");
 		}
 
 		return EXIT_CONTINUE;
@@ -62,39 +66,12 @@ public class PdfDecompressCommand extends AbstractCommand
 		Stopwatch watch = Stopwatch.createStarted();
 
 		try (PDDocument doc = Loader.loadPDF(new File(options.inputs.get(0)))) {
-			doc.setAllSecurityToBeRemoved(true);
-			COSDocument cosDocument = doc.getDocument();
-			cosDocument.getXrefTable().keySet()
-				.forEach(o -> processObject(cosDocument.getObjectFromPool(o)));
-			doc.getDocumentCatalog();
-			doc.getDocument().setIsXRefStream(false);
-			doc.save(mainOptions.getOutput());
+			pdfFiles.decompress(doc);
+			pdfFiles.saveViaTmp(doc, Paths.get(mainOptions.getOutput()));
 		}
 
 		log.info("Processed in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
 		return EXIT_SUCCESS;
-	}
-
-	private void processObject(COSObject cosObject)
-	{
-		COSBase base = cosObject.getObject();
-		if (base instanceof COSStream stream) {
-			if (COSName.XOBJECT.equals(stream.getItem(COSName.TYPE))
-				&& COSName.IMAGE.equals(stream.getItem(COSName.SUBTYPE)))
-			{
-				return;
-			}
-			try {
-				byte[] bytes = new PDStream(stream).toByteArray();
-				stream.removeItem(COSName.FILTER);
-				try (OutputStream streamOut = stream.createOutputStream()) {
-					streamOut.write(bytes);
-				}
-			}
-			catch (IOException ex) {
-				log.warn("skip object={} generation={}", cosObject.getObjectNumber(), cosObject.getGenerationNumber(), ex);
-			}
-		}
 	}
 
 	@Override
@@ -104,14 +81,14 @@ public class PdfDecompressCommand extends AbstractCommand
 		);
 	}
 
+	@Override
+	protected Map<String, String> configParametersDescription(CommandContext context)
+	{
+		return ImmutableMap.of("file", "input file");
+	}
+
 	public static class Options
 	{
 		List<String> inputs;
-
-		Integer firstPage;
-
-		float[] pagePosition;
-
-		String pagePattern;
 	}
 }

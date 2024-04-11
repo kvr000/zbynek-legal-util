@@ -108,6 +108,9 @@ The command joins input files into a destination and optionally adds page number
 
 #### Options
 
+- `--decompress` : decompress input files
+- `--append` : append to output
+- `--skip-first` : do not modify first file (typically when appending)
 - `-a start-page` : add page numbers, starting with this parameter value
 - `-p x,y` : position to render page number to (range 0 - 1)
 - `-f page-number-pattern` : page number pattern, such as Page %02d
@@ -141,6 +144,7 @@ zbynek-legal-format -o main.pdf pdf-replace -i input-file -m destination=source 
 - `-i input-file` : input file for operation
 - `-m destinationPage[=sourcePage]` : moves sourcePage to destinationPage (same page if sourcePage not provided)
 - `-a destinationPage` : adds new blank page
+- `-d start-[end]` : remove pages
 - `--title document-title` : sets document title
 - `--subject document-subject` : sets document subject
 - `--author document-author` : sets document author

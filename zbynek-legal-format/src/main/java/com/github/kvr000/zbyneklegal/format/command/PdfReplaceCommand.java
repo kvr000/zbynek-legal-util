@@ -60,6 +60,24 @@ public class PdfReplaceCommand extends AbstractCommand
 				options.operations.add(Pair.of(Integer.parseInt(addCommand), null));
 				return true;
 			}
+			case "-d" -> {
+				String[] deleteCommand = needArgsParam(null, args).split("-");
+				int start = Integer.parseInt(deleteCommand[0]), end;
+				if (start <= 0) {
+					throw new IllegalArgumentException("start page must be greater than zero");
+				}
+				if (deleteCommand.length == 1) {
+					end = start;
+				}
+				else {
+					end = Integer.parseInt(deleteCommand[1]);
+					if (end < start) {
+						throw new IllegalArgumentException("end page must be greater or equal to start page");
+					}
+				}
+				options.operations.add(Pair.of(start, -end));
+				return true;
+			}
 			case "--replace-meta" -> {
 				options.replaceMeta = true;
 				return true;
@@ -100,11 +118,11 @@ public class PdfReplaceCommand extends AbstractCommand
 			return usage(context, "-o output option is mandatory");
 		}
 
-		if (options.inputFile == null && (options.meta.isEmpty() && options.metaFrom == null)) {
-			return usage(context, "-i input option or meta setting options are mandatory");
+		if (options.operations.stream().anyMatch(e -> e.getValue() != null && e.getValue() > 0) && options.inputFile == null) {
+			return usage(context, "-i input option is mandatory if move operations are specified");
 		}
-		if (options.operations.stream().anyMatch(e -> e.getValue() != null) && options.inputFile == null) {
-			return usage(context, "-i input option is mandatory if operations are specified");
+		if (options.inputFile == null && (options.meta.isEmpty() && options.metaFrom == null) && options.operations.isEmpty()) {
+			return usage(context, "-i input option or operations or meta setting options are mandatory");
 		}
 
 		return EXIT_CONTINUE;
@@ -132,6 +150,11 @@ public class PdfReplaceCommand extends AbstractCommand
 							if (operation.getRight() == null) {
 								renderer.insertBlankPage(operation.getLeft());
 							}
+							else if (operation.getRight() < 0) {
+								for (int i = -operation.getRight(); i >= operation.getLeft(); --i) {
+									renderer.removePage(i - 1);
+								}
+							}
 							else {
 								renderer.replacePage(operation.getLeft() - 1, inputPages.get(operation.getRight() - 1));
 							}
@@ -142,6 +165,11 @@ public class PdfReplaceCommand extends AbstractCommand
 					for (Pair<Integer, Integer> operation : options.operations) {
 						if (operation.getRight() == null) {
 							renderer.insertBlankPage(operation.getLeft());
+						}
+						else if (operation.getRight() < 0) {
+							for (int i = -operation.getRight(); i >= operation.getLeft(); --i) {
+								renderer.removePage(i - 1);
+							}
 						}
 					}
 				}
@@ -174,18 +202,19 @@ public class PdfReplaceCommand extends AbstractCommand
 	@Override
 	protected Map<String, String> configOptionsDescription(CommandContext context)
 	{
-		return ImmutableMap.of(
-				"-i input-file", "input file for operation",
-				"-m destinationPage[=sourcePage]", "moves sourcePage to destinationPage (same page if sourcePage not provided)",
-				"-a destinationPage", "adds new blank page",
-				"--title document-title", "sets document title",
-				"--subject document-subject", "sets document subject",
-				"--author document-author", "sets document author",
-				"--replace-meta", "replace meta to original document (default is to keep)",
-				"--meta-from document", "copy all meta from specified document",
-				"--delete-all-meta", "delete all meta fields",
-				"--delete-meta key", "delete meta field named key"
-		);
+		return ImmutableMap.<String, String>builder()
+			.put("-i input-file", "input file for operation")
+			.put("-m destinationPage[=sourcePage]", "moves sourcePage to destinationPage (same page if sourcePage not provided)")
+			.put("-a destinationPage", "adds new blank page")
+			.put("-d start[-end]", "remove pages")
+			.put("--title document-title", "sets document title")
+			.put("--subject document-subject", "sets document subject")
+			.put("--author document-author", "sets document author")
+			.put("--replace-meta", "replace meta to original document (default is to keep)")
+			.put("--meta-from document", "copy all meta from specified document")
+			.put("--delete-all-meta", "delete all meta fields")
+			.put("--delete-meta key", "delete meta field named key")
+			.build();
 	}
 
 	public static class Options
