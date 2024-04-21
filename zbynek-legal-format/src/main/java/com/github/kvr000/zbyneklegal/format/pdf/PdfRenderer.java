@@ -1,7 +1,10 @@
 package com.github.kvr000.zbyneklegal.format.pdf;
 
+import com.github.kvr000.zbyneklegal.format.collection.CloseableIterator;
 import com.google.common.collect.ImmutableList;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -11,20 +14,56 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.util.Matrix;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 
 @Log4j2
 public class PdfRenderer implements AutoCloseable
 {
+	public static final float IMAGE_SCALE = 150.0f / 72.0f;
+
+	private static final boolean HAS_PDFTOCAIRO;
+
 	private final PDDocument document;
 
 	private final PDFMergerUtility merger;
+
+	static {
+		int exit;
+		try {
+			exit = new ProcessBuilder("pdftocairo", "--help")
+				.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+				.start().waitFor();
+		}
+		catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
+		catch (IOException e) {
+			exit = -1;
+		}
+		HAS_PDFTOCAIRO = exit == 0;
+	}
 
 	public PdfRenderer(PDDocument document)
 	{
@@ -195,6 +234,115 @@ public class PdfRenderer implements AutoCloseable
 	public void removePage(int destination)
 	{
 		document.removePage(destination);
+	}
+
+	public CloseableIterator<Path> renderImages(Path inputFile, String format, Double scale, Float quality) throws IOException
+	{
+		Path tmp = Files.createTempDirectory("pdftocairo");
+		List<Path> output;
+		try {
+			if (document.getNumberOfPages() == 0) {
+				output = Collections.emptyList();
+			}
+			else if (HAS_PDFTOCAIRO && (format.equals("jpeg") || format.equals("png"))) {
+				PDRectangle box = document.getPage(0).getMediaBox();
+				float targetWidth = box.getWidth() * IMAGE_SCALE;
+				float targetHeight = box.getHeight() * IMAGE_SCALE;
+				if (scale != null) {
+					targetWidth *= scale;
+					targetHeight *= scale;
+				}
+				try {
+					ImmutableList.Builder<String> args = ImmutableList.<String>builder()
+						.add("pdftocairo")
+						.add("-" + format);
+					if (format.equals("jpeg") && quality != null) {
+						args.add("-jpegopt").add("quality=" + Math.round(quality * 100));
+					}
+					if (scale != null) {
+						args.add("-scale-to-x").add(Integer.toString(Math.round(targetWidth)));
+					}
+					args.add(inputFile.toString());
+					args.add(tmp.toString() + File.separator);
+					int exit = new ProcessBuilder(args.build())
+						.redirectError(ProcessBuilder.Redirect.INHERIT)
+						.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+						.start()
+						.waitFor();
+					if (exit != 0) {
+						throw new IOException("Failed to execute " + Strings.join(args.build(), ' ') + ": exit=" + exit);
+					}
+				}
+				catch (InterruptedException e) {
+					throw new IOException("Failed to wait for gs", e);
+				}
+				output = Files.list(tmp).sorted().toList();
+			}
+			else {
+				output = new ArrayList<>();
+				PDFRenderer inkRenderer = new PDFRenderer(document);
+				for (int i = 0; i < document.getNumberOfPages(); ++i) {
+					BufferedImage image = inkRenderer.renderImage(i, IMAGE_SCALE);
+					float targetWidth = image.getWidth();
+					float targetHeight = image.getHeight();
+
+					final BufferedImage resizedImage;
+					if (scale == null || scale == 1.0) {
+						resizedImage = image;
+					} else {
+						resizedImage = new BufferedImage((int) targetWidth, (int) targetHeight, BufferedImage.TYPE_INT_RGB);
+
+						Graphics2D g = resizedImage.createGraphics();
+						g.setComposite(AlphaComposite.Src);
+						g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+						g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+						g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+						g.drawImage(image, 0, 0, (int) targetWidth, (int) targetHeight, null);
+						g.dispose();
+					}
+
+					String filename = Integer.toString(i) + "." + format;
+					ImageWriter writer = ImageIO.getImageWritersByFormatName(format).next();
+					ImageWriteParam param = writer.getDefaultWriteParam();
+					param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+					param.setCompressionQuality(quality);
+					Path out = tmp.resolve(filename);
+					log.info("Writing to: filename={}", out);
+					writer.setOutput(ImageIO.createImageOutputStream(out.toFile()));
+					writer.write(null, new IIOImage(resizedImage, null, null), param);
+					output.add(out);
+				}
+			}
+
+			return new CloseableIterator<Path>()
+			{
+				Iterator<Path> sub = output.iterator();
+
+				@Override
+				public void close() throws IOException
+				{
+					FileUtils.deleteDirectory(tmp.toFile());
+				}
+
+				@Override
+				public boolean hasNext()
+				{
+					return sub.hasNext();
+				}
+
+				@Override
+				public Path next()
+				{
+					return sub.next();
+				}
+			};
+		}
+		catch (Throwable ex) {
+			FileUtils.deleteDirectory(tmp.toFile());
+			throw ex;
+		}
+
+
 	}
 
 	@Override

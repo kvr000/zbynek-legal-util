@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.collection.CloseableIterator;
 import com.github.kvr000.zbyneklegal.format.image.ColorExtractor;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.google.common.base.Stopwatch;
@@ -24,6 +25,10 @@ import javax.inject.Inject;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Iterator;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -100,18 +105,15 @@ public class MergeInkCommand extends AbstractCommand
 			PDDocument doc = Loader.loadPDF(new File(options.baseFile));
 			PdfRenderer renderer = new PdfRenderer(doc);
 			PDDocument inkFile = Loader.loadPDF(new File(options.inkFile));
+			CloseableIterator<Path> images = renderer.renderImages(Paths.get(options.inkFile), "png", null, 0.5f);
 		) {
-			PDFRenderer inkRenderer = new PDFRenderer(inkFile);
 			for (int i = 0; i < inkFile.getNumberOfPages(); ++i) {
+				Path imagePath = images.next();
 				int pageI = i;
 				PDPage docPage = doc.getPage(pageI);
-				PDRectangle box = docPage.getCropBox();
+				PDRectangle box = docPage.getMediaBox();
 				Pair<byte[], Matrix> result = ((Callable<Pair<byte[], Matrix>>) () -> {
-					BufferedImage image = inkRenderer.renderImage(pageI);
-					ByteArrayOutputStream imageStream = new ByteArrayOutputStream();
-					ImageIO.write(image, "png", imageStream);
-					//Files.write(Paths.get(String.format("page-%03d-scan.png", pageI)), imageStream.toByteArray());
-					byte[] extracted = colorExtractor.extractColor(imageStream.toByteArray(), lowBlueScalar, highBlueScalar);
+					byte[] extracted = colorExtractor.extractColor(Files.readAllBytes(imagePath), lowBlueScalar, highBlueScalar);
 					Matrix transformation;
 					if (renderer.isRotated(docPage)) {
 						if (pageI < options.flipTill) {

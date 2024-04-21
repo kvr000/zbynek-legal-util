@@ -180,6 +180,23 @@ zbynek-legal-format -o output.pdf pdf-decompress input.pdf
 N/A
 
 
+### pdf-resize
+
+The command resizes PDF files made from images.
+
+```
+zbynek-legal-format -o output.pdf pdf-resize [-q quality ] [ -s scale ] input.pdf
+```
+
+It is better to not specify scale factor as it's taken from page size, not the image size.
+
+#### Options
+
+`-w target-width` : target page width (or height / shorter size if rotated)
+`-s scale` : page scale factor
+`-q quality` : compression quality
+
+
 ### merge-ink
 
 The command merges look-like-ink parts from `scanned-file` to original digital `base-file`, maintaining the digital

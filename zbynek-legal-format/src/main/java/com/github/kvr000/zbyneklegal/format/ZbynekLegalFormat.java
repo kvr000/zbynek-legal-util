@@ -7,6 +7,7 @@ import com.github.kvr000.zbyneklegal.format.command.PdfDecompressCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfJoinCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfMetaCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
+import com.github.kvr000.zbyneklegal.format.command.PdfResizeCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
 import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
 import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
@@ -125,6 +126,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("pdf-join", PdfJoinCommand.class)
 			.put("pdf-split", PdfSplitCommand.class)
 			.put("pdf-replace", PdfReplaceCommand.class)
+			.put("pdf-resize", PdfResizeCommand.class)
 			.put("pdf-meta", PdfMetaCommand.class)
 			.put("pdf-decompress", PdfDecompressCommand.class)
 			.put("merge-ink", MergeInkCommand.class)
@@ -143,6 +145,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("pdf-join", "Joins pdf files")
 			.put("pdf-split", "Splits pdf by size or number of pages")
 			.put("pdf-replace", "Replaces pages in pdf")
+			.put("pdf-resize", "Resizes image based pdf")
 			.put("pdf-meta", "Shows meta fields from pdf")
 			.put("pdf-decompress", "Internally decompresses the pdf")
 			.put("merge-ink", "Merges ink from printed pages into original document")

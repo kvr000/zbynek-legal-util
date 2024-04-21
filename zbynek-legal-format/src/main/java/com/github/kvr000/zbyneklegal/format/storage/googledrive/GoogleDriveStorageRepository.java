@@ -45,7 +45,7 @@ public class GoogleDriveStorageRepository implements StorageRepository
     /**
      * Directory to store authorization tokens for this application.
      */
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
+    private static final String TOKENS_DIRECTORY_PATH = SystemUtils.getUserHome().getPath() + "/.local/google.com/tokens/";
 
     /**
      * Global instance of the scopes required by this quickstart.
