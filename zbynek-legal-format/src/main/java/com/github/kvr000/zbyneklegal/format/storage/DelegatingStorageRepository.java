@@ -28,9 +28,9 @@ public class DelegatingStorageRepository implements StorageRepository
     }
 
     @Override
-    public Map.Entry<String, String> checksum(String url) throws IOException
+    public Map<String, String> metadata(String url) throws IOException
     {
-        return findRepository(url).checksum(url);
+        return findRepository(url).metadata(url);
     }
 
     private StorageRepository findRepository(String url) throws IOException

@@ -27,6 +27,8 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
+import com.google.api.services.drive.model.File;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.SystemUtils;
 
 
@@ -82,12 +84,20 @@ public class GoogleDriveStorageRepository implements StorageRepository
     }
 
     @Override
-    public Map.Entry<String, String> checksum(String url) throws IOException
+    public Map<String, String> metadata(String url) throws IOException
     {
-        return new AbstractMap.SimpleImmutableEntry<>("MD5", service.files().get(getFileId(url))
-                .setFields("md5Checksum")
-                .execute()
-                .getMd5Checksum()
+        File result = service.files().get(getFileId(url))
+                .setFields("name,fileExtension,md5Checksum")
+                .execute();
+
+        if (result == null) {
+            return null;
+        }
+
+        return ImmutableMap.of(
+                "filename", result.getName(),
+                "fileExtension", result.getFileExtension(),
+                "md5", result.getMd5Checksum()
         );
     }
 

@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 
@@ -48,8 +47,13 @@ public class PdfFiles
 
 	public PDDocument load(Path input) throws IOException
 	{
-		PDDocument doc = Loader.loadPDF(input.toFile());
-		return doc;
+		try {
+			PDDocument doc = Loader.loadPDF(input.toFile());
+			return doc;
+		}
+		catch (IOException ex) {
+			throw new IOException("Failed to load PDF: " + input, ex);
+		}
 	}
 
 	public void decompress(PDDocument doc)

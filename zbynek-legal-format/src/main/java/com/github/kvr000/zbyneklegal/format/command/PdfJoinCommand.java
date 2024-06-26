@@ -18,6 +18,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.ListIterator;
@@ -103,14 +104,14 @@ public class PdfJoinCommand extends AbstractCommand
 		Stopwatch watch = Stopwatch.createStarted();
 
 		try (
-			PDDocument doc = options.append ? Loader.loadPDF(new File(mainOptions.getOutput())) : new PDDocument();
+			PDDocument doc = options.append ? pdfFiles.load(Paths.get(mainOptions.getOutput())) : new PDDocument();
 			PdfRenderer renderer = new PdfRenderer(doc)
 		) {
 			int internalPageCounter = doc.getNumberOfPages();
 			int inputCounter = 0;
 			PDFMergerUtility merger = new PDFMergerUtility();
 			for (String inputName: options.inputs) {
-				try (PDDocument input = Loader.loadPDF(new File(inputName))) {
+				try (PDDocument input = pdfFiles.load(Paths.get(inputName))) {
 					if (options.decompress) {
 						pdfFiles.decompress(input);
 					}

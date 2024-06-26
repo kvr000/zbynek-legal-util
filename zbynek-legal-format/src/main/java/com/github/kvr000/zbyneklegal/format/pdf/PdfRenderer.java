@@ -341,8 +341,6 @@ public class PdfRenderer implements AutoCloseable
 			FileUtils.deleteDirectory(tmp.toFile());
 			throw ex;
 		}
-
-
 	}
 
 	@Override

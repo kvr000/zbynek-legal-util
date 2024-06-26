@@ -14,9 +14,13 @@ import net.dryuf.base.concurrent.executor.CloseableExecutor;
 import net.dryuf.base.concurrent.executor.ClosingExecutor;
 import net.dryuf.base.concurrent.executor.CommonPoolExecutor;
 import net.dryuf.base.concurrent.future.FutureUtil;
+import net.dryuf.base.function.ThrowingFunction;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 
 import javax.inject.Inject;
 import java.io.FileNotFoundException;
@@ -37,6 +41,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class SyncFilesCommand extends AbstractCommand
 {
+	public static final Map<String, ThrowingFunction<InputStream, InputStream, IOException>> COMPRESSIONS = ImmutableMap.of(
+		"zst", ZstdCompressorInputStream::new,
+		"gz", GzipCompressorInputStream::new,
+		"xz", XZCompressorInputStream::new
+	);
+
 	private final TableUpdatorFactory tableUpdatorFactory;
 
 	private final StorageRepository storageRepository;
@@ -92,9 +102,9 @@ public class SyncFilesCommand extends AbstractCommand
 								return null;
 							}
 							try {
-								downloadFile(inputEntry.filename + ".pdf", inputEntry.filenameUrl);
+								downloadPdf(inputEntry.filename + ".pdf", inputEntry.filenameUrl);
 							}
-							catch (IOException ex) {
+							catch (Throwable ex) {
 								log.error("Failed to download file: {}", inputEntry.filename, ex);
 								errors.incrementAndGet();
 							}
@@ -114,7 +124,7 @@ public class SyncFilesCommand extends AbstractCommand
 							try {
 								downloadFile(inputEntry.medianame, inputEntry.medianameUrl);
 							}
-							catch (IOException ex) {
+							catch (Throwable ex) {
 								log.error("Failed to download file: {}", inputEntry.medianame, ex);
 								errors.incrementAndGet();
 							}
@@ -153,10 +163,10 @@ public class SyncFilesCommand extends AbstractCommand
 
 	private void downloadFile(String localName, String url) throws IOException
 	{
-		log.info("Downloading: local={} url={}", localName, url);
+		log.info("Downloading any: local={} url={}", localName, url);
 		try (InputStream stream = Files.newInputStream(Paths.get(localName))) {
-			Map.Entry<String, String> checksum = storageRepository.checksum(url);
-			if (compareChecksum(stream, checksum)) {
+			Map<String, String> metadata = storageRepository.metadata(url);
+			if (compareChecksum(stream, metadata)) {
 				return;
 			}
 		}
@@ -168,24 +178,67 @@ public class SyncFilesCommand extends AbstractCommand
 		}
 	}
 
-	private boolean compareChecksum(InputStream stream, Map.Entry<String, String> checksum) throws IOException
+	private void downloadPdf(String localName, String url) throws IOException
 	{
-		final String localChecksum;
-
-		switch (checksum.getKey()) {
-		case "MD5":
-			localChecksum = DigestUtils.md5Hex(stream);
-			break;
-
-		case "SHA256":
-			localChecksum = DigestUtils.sha256Hex(stream);
-			break;
-
-		default:
-			throw new IOException("Unsupported checksum algorithm: " + checksum.getKey());
+		String fullName;
+		log.info("Downloading pdf: local={} url={}", localName, url);
+		Map<String, String> metadata = storageRepository.metadata(url);
+		ThrowingFunction<InputStream, InputStream, IOException> decompressor = null;
+		if (metadata != null && (decompressor = COMPRESSIONS.get(metadata.get("fileExtension"))) != null) {
+			fullName = localName + "." + metadata.get("fileExtension");
+			try (InputStream stream = Files.newInputStream(Paths.get(fullName))) {
+				if (compareChecksum(stream, metadata)) {
+					return;
+				}
+			}
+			catch (FileNotFoundException | NoSuchFileException ex) {
+			}
+		}
+		else {
+			fullName = localName;
+			try (InputStream stream = Files.newInputStream(Paths.get(localName))) {
+				if (compareChecksum(stream, metadata)) {
+					return;
+				}
+			}
+			catch (FileNotFoundException | NoSuchFileException ex) {
+			}
 		}
 
-		return localChecksum.equals(checksum.getValue());
+		try (InputStream input = storageRepository.downloadFile(url)) {
+			Files.copy(input, Paths.get(fullName), StandardCopyOption.REPLACE_EXISTING);
+		}
+
+		if (decompressor != null) {
+			try (
+				InputStream compressed = Files.newInputStream(Paths.get(fullName));
+				InputStream decompressed = decompressor.apply(compressed)
+			) {
+				Files.copy(decompressed, Paths.get(localName), StandardCopyOption.REPLACE_EXISTING);
+			}
+		}
+	}
+
+	private boolean compareChecksum(InputStream stream, Map<String, String> metadata) throws IOException
+	{
+		final String localChecksum;
+		String checksum;
+
+		if (metadata == null) {
+			return false;
+		}
+
+		if ((checksum = metadata.get("md5")) != null) {
+			localChecksum = DigestUtils.md5Hex(stream);
+		}
+		else if ((checksum = metadata.get("sha256")) != null) {
+			localChecksum = DigestUtils.sha256Hex(stream);
+		}
+		else {
+			throw new IOException("Unsupported checksum algorithm: " + metadata);
+		}
+
+		return localChecksum.equals(checksum);
 	}
 
 	protected Map<String, String> configParametersDescription(CommandContext context)
