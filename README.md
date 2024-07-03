@@ -180,6 +180,19 @@ zbynek-legal-format -o output.pdf pdf-decompress input.pdf
 N/A
 
 
+### pdf-empty
+
+The command creates empty (zero pages) PDF file.
+
+```
+zbynek-legal-format -o output.pdf pdf-empty
+```
+
+#### Options
+
+N/A
+
+
 ### pdf-resize
 
 The command resizes PDF files made from images.

@@ -1,23 +1,26 @@
 package com.github.kvr000.zbyneklegal.format.command;
 
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
+import com.github.kvr000.zbyneklegal.format.pdf.PdfFiles;
 import com.google.common.base.Stopwatch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 import javax.inject.Inject;
-import java.io.File;
+import java.nio.file.Paths;
 import java.util.ListIterator;
+import java.util.concurrent.TimeUnit;
 
 
 @Log4j2
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
-public class PdfMetaCommand extends AbstractCommand
+public class PdfEmptyCommand extends AbstractCommand
 {
+	private final PdfFiles pdfFiles;
+
 	private final ZbynekLegalFormat.Options mainOptions;
 
 	@Override
@@ -35,12 +38,11 @@ public class PdfMetaCommand extends AbstractCommand
 	{
 		Stopwatch watch = Stopwatch.createStarted();
 
-		try (PDDocument doc = Loader.loadPDF(new File(mainOptions.getOutput()))) {
-			for (String key: doc.getDocumentInformation().getMetadataKeys()) {
-				System.out.println(key + ": " + doc.getDocumentInformation().getCustomMetadataValue(key));
-			}
+		try (PDDocument doc = new PDDocument()) {
+			pdfFiles.saveViaTmp(doc, Paths.get(mainOptions.getOutput()));
 		}
 
+		log.info("Processed in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
 		return EXIT_SUCCESS;
 	}
 }
