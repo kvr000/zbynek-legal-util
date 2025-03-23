@@ -11,12 +11,13 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 
 @RequiredArgsConstructor
 public class IndexReader
 {
-    private final TableUpdator table;
+    private static final Set<String> CONFIG_KEYS = Set.of("TABMAP", "BASE", "FILES");
 
     private final Map<String, Integer> headers;
 
@@ -24,10 +25,9 @@ public class IndexReader
 
     public IndexReader(TableUpdator table)
     {
-        this.table = table;
         this.headers = table.getHeaders();
         this.entries = table.listEntries().entrySet().stream()
-                .filter(rec -> !rec.getKey().equals("BASE") && !rec.getKey().equals("FILES"))
+                .filter(rec -> !CONFIG_KEYS.contains(rec.getKey()))
                 .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -54,6 +54,6 @@ public class IndexReader
                 .map(key -> this.entries.get(id).get(key + " Exh"))
                 .map(Strings::emptyToNull)
                 .filter(Objects::nonNull)
-                .anyMatch(s -> !s.startsWith("exclude"));
+                .anyMatch(s -> !s.equals("exclude") && !s.startsWith("exclude:") && !s.startsWith("ref:"));
     }
 }

@@ -1,6 +1,7 @@
 package com.github.kvr000.zbyneklegal.format;
 
 import com.github.kvr000.zbyneklegal.format.command.AddPageNumbersCommand;
+import com.github.kvr000.zbyneklegal.format.command.DocIndexCommand;
 import com.github.kvr000.zbyneklegal.format.command.JoinExhibitCommand;
 import com.github.kvr000.zbyneklegal.format.command.MergeInkCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfDecompressCommand;
@@ -84,6 +85,10 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			options.listFile = needArgsParam(options.listFile, args);
 			return true;
 
+		case "-s":
+			options.listSheet = needArgsParam(options.listSheet, args);
+			return true;
+
 		case "-k":
 			options.listFileKeys.add(needArgsParam(null, args));
 			return true;
@@ -110,7 +115,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	{
 		return ImmutableMap.of(
 			"-o output", "output filename",
-			"-l list file", "index with files",
+			"-l list-file", "index file",
+			"-s list-sheet", "index sheet",
 			"-k column-name", "multiple, key column in index file for the specific operation, suffixed with Exh and Pg"
 		);
 	}
@@ -120,6 +126,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	{
 		return ImmutableMap.<String, Class<? extends Command>>builder()
 			.put("join-exhibit", JoinExhibitCommand.class)
+			.put("doc-index", DocIndexCommand.class)
 			.put("update-checksum", UpdateChecksumCommand.class)
 			.put("sync-files", SyncFilesCommand.class)
 			.put("zip", ZipCommand.class)
@@ -140,6 +147,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 	{
 		return ImmutableMap.<String, String>builder()
 			.put("join-exhibit", "Concatenates exhibit files into single document, adding page numbers and updates index")
+			.put("doc-index", "Index documents per category")
 			.put("update-checksum", "Calculates files checksum and updates index")
 			.put("sync-files", "Synchronize files from remote storage")
 			.put("zip", "Zips files into multiarchive")
@@ -162,6 +170,8 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 		String output;
 
 		String listFile;
+
+		String listSheet;
 
 		List<String> listFileKeys = new ArrayList<>();
 	}

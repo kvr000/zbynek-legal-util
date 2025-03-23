@@ -236,6 +236,23 @@ public class PdfRenderer implements AutoCloseable
 		document.removePage(destination);
 	}
 
+	public void rotatePagesPortrait(int from0, int to0)
+	{
+		for (int i = from0; i < to0; i++) {
+			rotatePagePortrait(i);
+		}
+	}
+
+	public void rotatePagePortrait(int page0)
+	{
+		PDPage page = document.getPage(page0);
+		float width = rotatedWidth(page);
+		float height = rotatedHeight(page);
+		if (width > height) {
+			page.setRotation(page.getRotation() + 90);
+		}
+	}
+
 	public CloseableIterator<Path> renderImages(Path inputFile, String format, Double scale, Float quality) throws IOException
 	{
 		Path tmp = Files.createTempDirectory("pdftocairo");

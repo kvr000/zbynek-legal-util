@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 
 public interface TableUpdator extends Closeable
@@ -15,6 +16,10 @@ public interface TableUpdator extends Closeable
     public String getUrl(String id, String key);
 
     public String getOptionalValue(String id, String key);
+
+    public String getConfig(String config, String key);
+
+    public Optional<String> getOptionalConfig(String config, String key);
 
     public void setValue(String id, String key, String value);
 

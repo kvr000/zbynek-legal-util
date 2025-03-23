@@ -80,7 +80,7 @@ public class SyncFilesCommand extends AbstractCommand
 
 		Map<String, InputEntry> files;
 
-		filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
+		filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), mainOptions.getListSheet(), "Name");
 		files = readListFile();
 
 		AtomicInteger errors = new AtomicInteger();

@@ -7,13 +7,16 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 
 public class TsvTableUpdator extends AbstractTableUpdator
@@ -25,12 +28,13 @@ public class TsvTableUpdator extends AbstractTableUpdator
             .setSkipHeaderRecord(true)
             .build();
 
-    private Path filePath;
-    private Map<String, Integer> headers;
-    private List<Map<String, String>> records;
-    private Map<String, Map<String, String>> values;
+    private final Path filePath;
+    private final Map<String, Integer> headers;
+    private final ImmutableMap<String, Integer> configToRows;
+    private final List<Map<String, String>> records;
+    private final Map<String, Map<String, String>> values;
 
-    public TsvTableUpdator(Path path, String idColumn) throws IOException
+    public TsvTableUpdator(Path path, String sheet, String idColumn) throws IOException
     {
         super(path, idColumn);
 
@@ -38,6 +42,7 @@ public class TsvTableUpdator extends AbstractTableUpdator
 
         try (CSVParser parser = CSVParser.parse(this.filePath, Charsets.UTF_8, PARSER_TSV_HEADER)) {
             headers = parser.getHeaderMap();
+
             Integer keyPosition = headers.get(idColumn);
             if (keyPosition == null) {
                 throw new IllegalArgumentException("Key not found in TSV file: " + idColumn);
@@ -53,6 +58,16 @@ public class TsvTableUpdator extends AbstractTableUpdator
                             rec -> rec
                     ));
         }
+
+        Integer datePosition = headers.get("Date");
+        configToRows = IntStream.range(0, records.size())
+                .mapToObj(rowId -> Optional.ofNullable(records.get(rowId).get(datePosition))
+                        .filter(v -> StringUtils.isAlpha(v) && StringUtils.isAllUpperCase(v))
+                        .map(v -> Map.entry(v, rowId))
+                        .orElse(null)
+                )
+                .filter(Objects::nonNull)
+                .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public Map<String, Map<String, String>> listEntries()
@@ -71,6 +86,18 @@ public class TsvTableUpdator extends AbstractTableUpdator
         return Optional.ofNullable(values.get(id))
                 .map(row -> row.get(key))
                 .orElse(null);
+    }
+
+    @Override
+    public String getConfig(String config, String key)
+    {
+        return "";
+    }
+
+    @Override
+    public Optional<String> getOptionalConfig(String config, String key)
+    {
+        return Optional.empty();
     }
 
     @Override

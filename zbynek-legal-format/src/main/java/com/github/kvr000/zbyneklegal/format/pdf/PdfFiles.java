@@ -56,6 +56,13 @@ public class PdfFiles
 		}
 	}
 
+	public int countPages(Path input) throws IOException
+	{
+		try (PDDocument doc = load(input)) {
+			return doc.getNumberOfPages();
+		}
+	}
+
 	public void decompress(PDDocument doc)
 	{
 		doc.setAllSecurityToBeRemoved(true);

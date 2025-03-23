@@ -3,7 +3,10 @@ package com.github.kvr000.zbyneklegal.format.table;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Streams;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Hyperlink;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -23,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -31,27 +33,39 @@ import java.util.stream.StreamSupport;
 
 public class XlsTableUpdator extends AbstractTableUpdator
 {
+    public static final DataFormatter DATA_FORMATTER = new DataFormatter();
+
     private final Workbook workbook;
 
     private final Sheet sheet;
 
     private String[] headerNames;
 
+    private final ImmutableMap<String, Integer> configToRows;
     private List<Map<String, String>> records;
     private Map<String, Map<String, String>> values;
 
     private Map<String, Integer> idToRow;
 
-    public XlsTableUpdator(Path path, String idColumn) throws IOException
+    public XlsTableUpdator(Path path, String sheetName, String idColumn) throws IOException
     {
         super(path, idColumn);
 
         try (InputStream reader = Files.newInputStream(path)) {
             workbook = new XSSFWorkbook(reader);
-            sheet = workbook.getSheetAt(0);
+            sheet = sheetName == null ? workbook.getSheetAt(0) : workbook.getSheet(sheetName);
+            if (sheet == null) {
+                throw new IOException("Cannot find sheet with name and id: sheet=" + sheetName + " idColumns=" + idColumn);
+            }
             Row header = sheet.getRow(0);
             headerNames = spareMapToList(StreamSupport.stream(header.spliterator(), false)
-                    .collect(ImmutableMap.toImmutableMap(cell -> cell.getColumnIndex(), cell -> getCellString(cell))));
+                    .map(cell -> Optional.ofNullable(DATA_FORMATTER.formatCellValue(cell))
+                            .filter(StringUtils::isNotEmpty)
+                            .map(v -> Map.entry(cell.getColumnIndex(), v))
+                            .orElse(null)
+                    )
+                    .filter(Objects::nonNull)
+                    .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue)));
             headers = Streams.zip(
                             Stream.of(headerNames),
                             IntStream.range(0, Integer.MAX_VALUE).boxed(),
@@ -59,15 +73,30 @@ public class XlsTableUpdator extends AbstractTableUpdator
                     )
                     .filter(p -> p.getKey() != null)
                     .collect(ImmutableMap.toImmutableMap(p -> p.getKey(), p -> p.getValue()));
-            Integer keyPosition = headers.get(idColumn);
-            if (keyPosition == null) {
-                throw new IllegalArgumentException("Key not found in XLS file: " + idColumn);
-            }
+            Integer datePosition = Optional.ofNullable(headers.get("Date")).orElseThrow(() -> new IOException("Header not found: Date"));
 
-            records = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
+            Integer keyPosition = headers.get(this.idColumn);
+            if (keyPosition == null) {
+                throw new IllegalArgumentException("Key not found in XLS file: " + this.idColumn);
+            }
+            configToRows = IntStream.range(0, sheet.getPhysicalNumberOfRows())
+                    .mapToObj(rowId -> Optional.ofNullable(sheet.getRow(rowId))
+                            .map(row -> row.getCell(datePosition))
+                            .filter(Objects::nonNull)
+                            .filter(cell -> cell.getCellType() == CellType.STRING)
+                            .map(cell -> cell.getStringCellValue())
+                            .filter(v -> StringUtils.isAlpha(v) && StringUtils.isAllUpperCase(v))
+                            .map(v -> Map.entry(v, rowId))
+                            .orElse(null)
+                    )
+                    .filter(Objects::nonNull)
+                    .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            records = IntStream.range(0, sheet.getPhysicalNumberOfRows())
                     .mapToObj(rowId -> sheet.getRow(rowId))
                     .skip(1)
                     .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)
+                            .filter(cell -> cell.getColumnIndex() < headerNames.length)
                             .filter(cell -> headerNames[cell.getColumnIndex()] != null)
                             .collect(ImmutableMap.toImmutableMap(
                                     cell -> headerNames[cell.getColumnIndex()],
@@ -76,9 +105,9 @@ public class XlsTableUpdator extends AbstractTableUpdator
                     )
                     .toList();
             values = records.stream()
-                    .filter(rec -> !Strings.isNullOrEmpty(rec.get(idColumn)))
+                    .filter(rec -> !Strings.isNullOrEmpty(rec.get(this.idColumn)))
                     .collect(ImmutableMap.toImmutableMap(
-                            rec -> rec.get(idColumn),
+                            rec -> rec.get(this.idColumn),
                             rec -> rec
                     ));
             idToRow = Streams.zip(
@@ -86,7 +115,7 @@ public class XlsTableUpdator extends AbstractTableUpdator
                             IntStream.rangeClosed(1, Integer.MAX_VALUE).boxed(),
                             AbstractMap.SimpleImmutableEntry::new
                     )
-                    .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey().get(idColumn), entry.getValue()))
+                    .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey().get(this.idColumn), entry.getValue()))
                     .filter(entry -> !Strings.isNullOrEmpty(entry.getKey()))
                     .collect(ImmutableMap.toImmutableMap(entry -> entry.getKey(), entry -> entry.getValue()));
         }
@@ -100,9 +129,9 @@ public class XlsTableUpdator extends AbstractTableUpdator
     @Override
     public String getUrl(String id, String key)
     {
-        Cell cell = getCell(id, key);
-        Hyperlink hyperlink = cell.getHyperlink();
-        return Optional.ofNullable(hyperlink).map(Hyperlink::getAddress).orElse(null);
+        Optional<Cell> cell = getOptionalCell(id, key);
+        Optional<Hyperlink> hyperlink = cell.map(Cell::getHyperlink);
+        return hyperlink.map(Hyperlink::getAddress).orElse(null);
     }
 
     @Override
@@ -112,10 +141,27 @@ public class XlsTableUpdator extends AbstractTableUpdator
                 .orElse(null);
     }
 
+    @Override
+    public String getConfig(String config, String key)
+    {
+        return getOptionalConfig(config, key)
+                .orElseThrow(() -> new IllegalArgumentException("No config found for key: config=" + config + " key=" + key));
+    }
+
+    @Override
+    public Optional<String> getOptionalConfig(String config, String key)
+    {
+        return Optional.ofNullable(configToRows.get(config))
+                .map(configRow -> sheet.getRow(configRow))
+                .map(row -> row.getCell(headers.get(key)))
+                .map(cell -> DATA_FORMATTER.formatCellValue(cell))
+                .filter(StringUtils::isNotEmpty);
+    }
+
     public void setValue(String id, String key, String value)
     {
         try {
-            getCell(id, key).setCellValue(value);
+            upsertCell(id, key).setCellValue(value);
         }
         catch (Exception ex) {
             throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);
@@ -176,14 +222,29 @@ public class XlsTableUpdator extends AbstractTableUpdator
         }
     }
 
-    private Cell getCell(String id, String key)
+    private Cell upsertCell(String id, String key)
     {
         Integer row = idToRow.get(id);
         if (row == null) {
             throw new IllegalArgumentException("Trying to access invalid id: " + id);
         }
         try {
-            return Objects.requireNonNull(sheet.getRow(row).getCell(headers.get(key)));
+            return Objects.requireNonNull(sheet.getRow(row).getCell(headers.get(key), Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+        }
+        catch (Exception ex) {
+            throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);
+        }
+    }
+
+
+    private Optional<Cell> getOptionalCell(String id, String key)
+    {
+        Integer row = idToRow.get(id);
+        if (row == null) {
+            throw new IllegalArgumentException("Trying to access invalid id: " + id);
+        }
+        try {
+            return Optional.ofNullable(sheet.getRow(row).getCell(headers.get(key)));
         }
         catch (Exception ex) {
             throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);

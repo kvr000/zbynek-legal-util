@@ -71,8 +71,6 @@ public class JoinExhibitCommand extends AbstractCommand
 {
 	public static final Pattern DATE_WITH_SUFFIX_PATTERN = Pattern.compile("^(\\d{4})(\\d{2})(\\d{2})-.*$");
 
-	DateTimeFormatter SWORN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MMM/yyyy", Locale.ROOT);
-
 	public static final String DEFAULT_EXHIBIT_SWEAR_AFFIRM =
 			"""
 					This is Exhibit "{exhibit}" referred to in the affidavit of
@@ -99,6 +97,8 @@ public class JoinExhibitCommand extends AbstractCommand
 
 					___________________________________________
 					A Commissioner for taking Affidavits for {province}""";
+
+	private static final DateTimeFormatter SWORN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MMM/yyyy", Locale.ROOT);
 
 	private static final ObjectMapper jsonMapper = new ObjectMapper();
 
@@ -263,7 +263,7 @@ public class JoinExhibitCommand extends AbstractCommand
 		Map<String, InputEntry> files;
 
 		if (mainOptions.getListFile() != null) {
-			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), "Name");
+			filesIndex = tableUpdatorFactory.openTableUpdator(Paths.get(mainOptions.getListFile()), mainOptions.getListSheet(), "Name");
 			indexReader = new IndexReader(filesIndex);
 			files = readListFile();
 			if (options.firstExhibit == null) {
@@ -495,34 +495,34 @@ public class JoinExhibitCommand extends AbstractCommand
 	private Map<String, InputEntry> readListFile() throws IOException
 	{
 		return indexReader.readIndex(mainOptions.getListFileKeys()).entrySet().stream()
-					.collect(ImmutableMap.toImmutableMap(
-							Map.Entry::getKey,
-							rec -> {
-								try {
-									return InputEntry.builder()
-											.filename(rec.getKey())
-											.url(filesIndex.getUrl(rec.getKey(), "Name"))
-											.swornPosition(Optional.ofNullable(rec.getValue().get("Sworn Pos"))
-													.map(Strings::emptyToNull)
-													.map(pos -> {
-														if (pos.equals("default")) {
-															return null;
-														}
-														String[] split = pos.split(";", 2);
-														if (split.length != 2) {
-															throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers or be 'default', got: " + pos);
-														}
-														return new float[]{Float.parseFloat(split[0]), Float.parseFloat(split[1])};
-													})
-													.orElse(null)
-											)
-											.build();
-								}
-								catch (Exception ex) {
-									throw new IllegalArgumentException("Failed to process entry file=" + rec.getKey() + ": " + ex, ex);
-								}
-							}
-					));
+			.collect(ImmutableMap.toImmutableMap(
+				Map.Entry::getKey,
+				rec -> {
+					try {
+						return InputEntry.builder()
+							.filename(rec.getKey())
+							.url(filesIndex.getUrl(rec.getKey(), "Name"))
+							.swornPosition(Optional.ofNullable(rec.getValue().get("Sworn Pos"))
+								.map(Strings::emptyToNull)
+								.map(pos -> {
+									if (pos.equals("default")) {
+										return null;
+									}
+									String[] split = pos.split(";", 2);
+									if (split.length != 2) {
+										throw new IllegalArgumentException("Sworn Pos must contain two semicolon separated numbers or be 'default', got: "+pos);
+									}
+									return new float[]{Float.parseFloat(split[0]), Float.parseFloat(split[1])};
+								})
+								.orElse(null)
+							)
+							.build();
+					}
+					catch (Exception ex) {
+						throw new IllegalArgumentException("Failed to process entry file="+rec.getKey()+": "+ex, ex);
+					}
+				}
+			));
 	}
 
 	private void updateListFile(Map<String, InputEntry> files) throws IOException
@@ -581,15 +581,14 @@ public class JoinExhibitCommand extends AbstractCommand
 				throw new IOException("No output file provided, nor index key");
 			}
 			mainOptions.setOutput(
-					Optional.ofNullable(filesIndex.getOptionalValue("FILES", mainOptions.getListFileKeys().get(0) + " Pg"))
-							.filter(Predicate.not(Strings::isNullOrEmpty))
-							.orElse(null)
+					filesIndex.getOptionalConfig("FILES", mainOptions.getListFileKeys().get(0) + " Pg")
+						.filter(Predicate.not(Strings::isNullOrEmpty))
+						.orElse(null)
 			);
 		}
 		if (options.base == null) {
 			if (!mainOptions.getListFileKeys().isEmpty()) {
-				options.base =
-						Optional.ofNullable(filesIndex.getOptionalValue("FILES", mainOptions.getListFileKeys().get(0) + " Exh"))
+				options.base = filesIndex.getOptionalConfig("FILES", mainOptions.getListFileKeys().get(0) + " Exh")
 								.filter(Predicate.not(Strings::isNullOrEmpty))
 								.orElse(null);
 			}
