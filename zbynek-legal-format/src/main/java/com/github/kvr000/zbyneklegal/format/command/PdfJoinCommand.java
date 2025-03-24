@@ -3,6 +3,7 @@ package com.github.kvr000.zbyneklegal.format.command;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfFiles;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
+import com.github.kvr000.zbyneklegal.format.table.TsvUtil;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -10,16 +11,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import net.dryuf.cmdline.command.AbstractCommand;
 import net.dryuf.cmdline.command.CommandContext;
-import org.apache.pdfbox.Loader;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 
 import javax.inject.Inject;
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -50,6 +50,13 @@ public class PdfJoinCommand extends AbstractCommand
 			}
 			case "--skip-first" -> {
 				options.skipFirst = true;
+				return true;
+			}
+			case "--align" -> {
+				options.align = Integer.parseInt(needArgsParam(options.align == 0 ? null : options.align, args));
+				if (options.align < 0) {
+					throw new IllegalArgumentException("align must not be negative");
+				}
 				return true;
 			}
 			case "-a" -> {
@@ -90,7 +97,6 @@ public class PdfJoinCommand extends AbstractCommand
 		if (options.inputs.isEmpty()) {
 			return usage(context, "inputs are mandatory");
 		}
-
 		if (options.pagePattern == null) {
 			options.pagePattern = "Pg %03d";
 		}
@@ -103,6 +109,7 @@ public class PdfJoinCommand extends AbstractCommand
 	{
 		Stopwatch watch = Stopwatch.createStarted();
 
+		Map<String, Pair<Integer, Integer>> inputs = new LinkedHashMap<>();
 		try (
 			PDDocument doc = options.append ? pdfFiles.load(Paths.get(mainOptions.getOutput())) : new PDDocument();
 			PdfRenderer renderer = new PdfRenderer(doc)
@@ -115,6 +122,7 @@ public class PdfJoinCommand extends AbstractCommand
 					if (options.decompress) {
 						pdfFiles.decompress(input);
 					}
+					int start = doc.getNumberOfPages();
 					merger.appendDocument(doc, input);
 					if (options.firstPage != null) {
 						for (; internalPageCounter < doc.getNumberOfPages(); ++internalPageCounter) {
@@ -127,6 +135,13 @@ public class PdfJoinCommand extends AbstractCommand
 							}
 						}
 					}
+					if (options.align > 1) {
+						while (doc.getNumberOfPages() % options.align != 0) {
+							renderer.insertBlankPage(doc.getNumberOfPages());
+						}
+					}
+					int size = doc.getNumberOfPages() - start;
+					inputs.put(inputName, Pair.of(start, size));
 				}
 				++inputCounter;
 			}
@@ -134,6 +149,11 @@ public class PdfJoinCommand extends AbstractCommand
 		}
 
 		log.info("Processed in {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
+
+		inputs.forEach((file, range) -> {
+			System.out.println(TsvUtil.formatTsv(file, range.getLeft() + 1, range.getRight()));
+		});
+
 		return EXIT_SUCCESS;
 	}
 
@@ -146,7 +166,8 @@ public class PdfJoinCommand extends AbstractCommand
 			"--skip-first", "do not modify first file (typically when appending)",
 			"-a start-page", "add page numbers, starting with this parameter value",
 			"-p x,y", "position to render page number to (range 0 - 1)",
-			"-f page-number-pattern", "page number pattern, such as Page %02d"
+			"-f page-number-pattern", "page number pattern, such as Page %02d",
+			"--align number-of-pages", "align documents to number of pages"
 		);
 	}
 
@@ -157,6 +178,8 @@ public class PdfJoinCommand extends AbstractCommand
 		boolean append;
 
 		boolean skipFirst;
+
+		int align;
 
 		List<String> inputs;
 

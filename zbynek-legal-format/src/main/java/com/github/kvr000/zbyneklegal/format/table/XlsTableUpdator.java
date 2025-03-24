@@ -79,7 +79,7 @@ public class XlsTableUpdator extends AbstractTableUpdator
             if (keyPosition == null) {
                 throw new IllegalArgumentException("Key not found in XLS file: " + this.idColumn);
             }
-            configToRows = IntStream.range(0, sheet.getPhysicalNumberOfRows())
+            configToRows = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
                     .mapToObj(rowId -> Optional.ofNullable(sheet.getRow(rowId))
                             .map(row -> row.getCell(datePosition))
                             .filter(Objects::nonNull)
@@ -92,7 +92,7 @@ public class XlsTableUpdator extends AbstractTableUpdator
                     .filter(Objects::nonNull)
                     .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            records = IntStream.range(0, sheet.getPhysicalNumberOfRows())
+            records = IntStream.rangeClosed(sheet.getFirstRowNum(), sheet.getLastRowNum())
                     .mapToObj(rowId -> sheet.getRow(rowId))
                     .skip(1)
                     .map(row -> row == null ? Collections.<String, String>emptyMap() : StreamSupport.stream(row.spliterator(), false)

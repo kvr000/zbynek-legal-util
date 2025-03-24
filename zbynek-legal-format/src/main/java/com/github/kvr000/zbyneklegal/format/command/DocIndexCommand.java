@@ -3,12 +3,12 @@ package com.github.kvr000.zbyneklegal.format.command;
 import com.github.kvr000.zbyneklegal.format.ZbynekLegalFormat;
 import com.github.kvr000.zbyneklegal.format.file.DirTreeFileDb;
 import com.github.kvr000.zbyneklegal.format.file.FileDb;
-import com.github.kvr000.zbyneklegal.format.format.StringFormat;
 import com.github.kvr000.zbyneklegal.format.indexfile.IndexReader;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfFiles;
 import com.github.kvr000.zbyneklegal.format.pdf.PdfRenderer;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdator;
 import com.github.kvr000.zbyneklegal.format.table.TableUpdatorFactory;
+import com.github.kvr000.zbyneklegal.format.table.TsvUtil;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -40,9 +40,12 @@ import java.util.LinkedHashMap;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 
@@ -50,9 +53,11 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor(onConstructor = @__(@Inject))
 public class DocIndexCommand extends AbstractCommand
 {
+	public static Pattern DATE_EXTRACT_PATTERN = Pattern.compile("^((\\d{4,})(\\d{2})(\\d{2}))[a-z]*\\s");
+
 	public static final String EXHIBIT_TEXT =
 	"""
-			This is Exhibit "{category}.{exhibit}"
+			This is Exhibit "{category}.{exhibit} {pages}pg"
 			""";
 
 	private final PdfFiles pdfFiles;
@@ -141,6 +146,8 @@ public class DocIndexCommand extends AbstractCommand
 					category.output.addPage(new PDPage(input.getPage(0).getMediaBox()));
 				}
 				file.exhibitId = generateExhibitId(category);
+				file.categoryId = category.tab + "-" + file.exhibitId;
+				file.pageCount = category.output.getNumberOfPages() - file.categoryPage0;
 				category.renderer.rotatePagesPortrait(category.categoryPages, category.output.getNumberOfPages());
 				for (int i = category.categoryPages; i < category.output.getNumberOfPages(); ++i) {
 					PDPage page = category.output.getPage(i);
@@ -148,26 +155,36 @@ public class DocIndexCommand extends AbstractCommand
 						if (i == category.categoryPages) {
 							renderExhibitId(category.renderer, contentStream, page, file);
 						}
-						category.renderer.renderPageNumber(contentStream, page, StringFormat.escapePercent(category.code) + " %03d", i + 1);
+						category.renderer.renderPageNumber(contentStream, page,
+							/*StringFormat.escapePercent(category.code) +*/ " %03d", i + 1);
 					}
 				}
 				category.categoryPages = category.output.getNumberOfPages();
-				file.categoryId = category.tab + String.format("-%03d", ++category.categoryCount);
+				category.entries.put(file.categoryPage0, file);
 			}
 		}
 
 		for (Category category: categoryMap.values()) {
 			if (category.output != null) {
-				category.output.save(Paths.get(mainOptions.getOutput()).resolve(category.code+".pdf").toFile());
+				category.output.save(Paths.get(mainOptions.getOutput()).resolve(category.tab +"-" + category.code+".pdf").toFile());
 			}
 		}
 		errors.forEach((file, message) -> log.error(message));
-		for (Category category: categoryMap.values()) {
-			System.out.println(category.code + "\t" + category.categoryCount + "\t" + category.categoryPages);
-		}
 		updateListFile(files);
-
 		log.info("Completed in: {} ms", watch.elapsed(TimeUnit.MILLISECONDS));
+		System.out.println();
+		for (Category category: categoryMap.values()) {
+			System.out.println(TsvUtil.formatTsv(category.code, category.exhibitCount, + category.categoryPages));
+		}
+		System.out.println();
+		for (Category category: categoryMap.values()) {
+			System.out.println(TsvUtil.formatTsv(category.code, category.name, category.tab + " " + category.categoryPages));
+			for (InputEntry file: category.entries.values()) {
+				System.out.println(TsvUtil.formatTsv(extractDate(file.filename), file.filename,
+					category.tab + "." + file.exhibitId + " " + (file.categoryPage0 + 1)));
+			}
+		}
+		System.out.println();
 
 		return EXIT_SUCCESS;
 	}
@@ -179,6 +196,12 @@ public class DocIndexCommand extends AbstractCommand
 		return exhibitId;
 	}
 
+	private String formatExhibitId(int number)
+	{
+		String exhibitId = String.format("%c%c", number/26 + 'A', number%26 + 'A');
+		return exhibitId;
+	}
+
 	private void renderExhibitId(PdfRenderer renderer, PDPageContentStream contentStream, PDPage page, InputEntry entry) throws IOException
 	{
 		String message = StringSubstitutor.replace(
@@ -186,6 +209,7 @@ public class DocIndexCommand extends AbstractCommand
 			ImmutableMap.<String, String>builder()
 				.put("category", entry.category)
 				.put("exhibit", entry.exhibitId)
+				.put("pages", String.valueOf(entry.pageCount))
 				.build(),
 			"{",
 			"}"
@@ -267,7 +291,7 @@ public class DocIndexCommand extends AbstractCommand
 				.forEach(entry -> {
 					mainOptions.getListFileKeys().forEach((exhibitKey) -> {
 						if (indexReader.isExhibitIncluded(entry.filename, Collections.singleton(exhibitKey))) {
-							filesIndex.setValue(entry.filename, exhibitKey + " Pg", Integer.toString(entry.categoryPage0));
+							filesIndex.setValue(entry.filename, exhibitKey + " Pg", Integer.toString(entry.categoryPage0 + 1));
 							filesIndex.setValue(entry.filename, exhibitKey + " Exh", Optional.ofNullable(entry.categoryId).orElse("-"));
 						}
 					});
@@ -310,10 +334,14 @@ public class DocIndexCommand extends AbstractCommand
 		categoryMap =  Arrays.stream(tabMapStr.split(","))
 			.filter(s -> !s.isBlank())
 			.map(s -> {
-				String[] p = s.split("=", 2);
+				String[] p = s.split("=", 3);
+				if (p.length < 2) {
+					throw new IllegalArgumentException("Invalid category definition, required code=tab[=name], got: " + s);
+				}
 				return Category.builder()
 					.code(p[0])
 					.tab(p[1])
+					.name(p.length > 2 ? p[2] : null)
 					.build();
 			})
 			.collect(ImmutableMap.toImmutableMap(Category::getCode, Function.identity()));
@@ -322,6 +350,15 @@ public class DocIndexCommand extends AbstractCommand
 	private Path findPdfFile(String name) throws IOException
 	{
 		return pdfFileDb.findFile(name);
+	}
+
+	private static String extractDate(String filename)
+	{
+		Matcher match = DATE_EXTRACT_PATTERN.matcher(filename);
+		if (match.find()) {
+			return match.group(2) + "-" + match.group(3) + "-" + match.group(4);
+		}
+		return null;
 	}
 
 	private TableUpdator filesIndex;
@@ -348,6 +385,7 @@ public class DocIndexCommand extends AbstractCommand
 		String categoryId;
 		int categoryPage0;
 		String exhibitId;
+		int pageCount;
 	}
 
 	@Builder
@@ -357,9 +395,11 @@ public class DocIndexCommand extends AbstractCommand
 		String tab;
 		String code;
 		String name;
-		int categoryCount;
 		int categoryPages;
 		int exhibitCount;
+
+		@Builder.Default
+		TreeMap<Integer, InputEntry> entries = new TreeMap<>();
 
 		PDFMergerUtility merger;
 		PDDocument output;

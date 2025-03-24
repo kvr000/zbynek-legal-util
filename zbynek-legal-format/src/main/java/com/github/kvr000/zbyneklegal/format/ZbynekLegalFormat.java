@@ -12,6 +12,7 @@ import com.github.kvr000.zbyneklegal.format.command.PdfReplaceCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfResizeCommand;
 import com.github.kvr000.zbyneklegal.format.command.PdfSplitCommand;
 import com.github.kvr000.zbyneklegal.format.command.SyncFilesCommand;
+import com.github.kvr000.zbyneklegal.format.command.TabConfigToTextCommand;
 import com.github.kvr000.zbyneklegal.format.command.UpdateChecksumCommand;
 import com.github.kvr000.zbyneklegal.format.command.ZipCommand;
 import com.github.kvr000.zbyneklegal.format.storage.DelegatingStorageRepository;
@@ -129,6 +130,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("doc-index", DocIndexCommand.class)
 			.put("update-checksum", UpdateChecksumCommand.class)
 			.put("sync-files", SyncFilesCommand.class)
+			.put("tab-config-to-text", TabConfigToTextCommand.class)
 			.put("zip", ZipCommand.class)
 			.put("add-page-numbers", AddPageNumbersCommand.class)
 			.put("pdf-join", PdfJoinCommand.class)
@@ -150,6 +152,7 @@ public class ZbynekLegalFormat extends AbstractParentCommand
 			.put("doc-index", "Index documents per category")
 			.put("update-checksum", "Calculates files checksum and updates index")
 			.put("sync-files", "Synchronize files from remote storage")
+			.put("tab-config-to-text", "Converts TSV tab config into tab=code,... string")
 			.put("zip", "Zips files into multiarchive")
 			.put("add-page-numbers", "Add page numbers and merge the files")
 			.put("pdf-join", "Joins pdf files")
