@@ -151,7 +151,7 @@ public class SyncFilesCommand extends AbstractCommand
 											.filename(rec.getKey())
 											.filenameUrl(filesIndex.getUrl(rec.getKey(), "Name"))
 											.medianame(rec.getValue().get("Media"))
-											.medianameUrl(filesIndex.getUrl(rec.getKey(), "Media"))
+											.medianameUrl(filesIndex.getOptionalUrl(rec.getKey(), "Media").orElse(null))
 											.build();
 								}
 								catch (Exception ex) {

@@ -135,6 +135,13 @@ public class XlsTableUpdator extends AbstractTableUpdator
     }
 
     @Override
+    public Optional<String> getOptionalUrl(String id, String key)
+    {
+        Optional<Cell> cell = getOptionalCell(id, key);
+        return cell.map(Cell::getHyperlink).map(Hyperlink::getAddress);
+    }
+
+    @Override
     public String getOptionalValue(String id, String key) {
         return Optional.ofNullable(values.get(id))
                 .map(record -> record.get(key))
@@ -236,6 +243,34 @@ public class XlsTableUpdator extends AbstractTableUpdator
         }
     }
 
+
+    private Optional<Cell> getOptionalCell(String id, String key)
+    {
+        Integer row = idToRow.get(id);
+        if (row == null) {
+            throw new IllegalArgumentException("Trying to access invalid id: " + id);
+        }
+        try {
+            return Optional.ofNullable(sheet.getRow(row).getCell(headers.get(key)));
+        }
+        catch (Exception ex) {
+            throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);
+        }
+    }
+
+    private Cell needCell(String id, String key)
+    {
+        Integer row = idToRow.get(id);
+        if (row == null) {
+            throw new IllegalArgumentException("Trying to access invalid id: " + id);
+        }
+        try {
+            return Objects.requireNonNull(sheet.getRow(row).getCell(headers.get(key), Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+        }
+        catch (Exception ex) {
+            throw new IllegalArgumentException("Trying to access unknown column: " + "id=" + id + " key=" + key, ex);
+        }
+    }
 
     private Optional<Cell> getOptionalCell(String id, String key)
     {

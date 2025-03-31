@@ -82,6 +82,12 @@ public class TsvTableUpdator extends AbstractTableUpdator
     }
 
     @Override
+    public Optional<String> getOptionalUrl(String id, String key)
+    {
+        return Optional.empty();
+    }
+
+    @Override
     public String getOptionalValue(String id, String key) {
         return Optional.ofNullable(values.get(id))
                 .map(row -> row.get(key))

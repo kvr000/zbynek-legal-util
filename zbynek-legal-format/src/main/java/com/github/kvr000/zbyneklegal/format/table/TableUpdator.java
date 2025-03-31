@@ -15,6 +15,8 @@ public interface TableUpdator extends Closeable
 
     public String getUrl(String id, String key);
 
+    public Optional<String> getOptionalUrl(String id, String key);
+
     public String getOptionalValue(String id, String key);
 
     public String getConfig(String config, String key);
